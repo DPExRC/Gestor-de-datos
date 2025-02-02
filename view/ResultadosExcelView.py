@@ -213,22 +213,7 @@ class ResultadosExcelView:
     def generar_archivo_mensual(self):
         """Genera el archivo mensual con el nombre del mes y año actual y permite al usuario guardar en una ubicación."""
         if self.controller:
-            headers, data = self.controller.get_processed_data()
-
-            if headers and data:
-                df = pd.DataFrame(data, columns=headers)
-                nombre_mes = datetime.now().strftime("%B").upper()
-                año = datetime.now().strftime("%Y")
-                default_filename = f"{nombre_mes}_{año}.xlsx"
-                
-                directorio = filedialog.askdirectory(title="Seleccionar ubicación para guardar")
-                if directorio:
-                    file_path = f"{directorio}/{default_filename}"
-                    df.to_excel(file_path, index=False)
-                    self.show_message("Éxito", f"Archivo guardado en: {file_path}")
-            else:
-                self.show_error("Error", "No hay datos para generar el archivo.")
-
+            self.controller.generar_archivo_mensual_controller()
 
     def reset_filters(self):
         if self.controller:

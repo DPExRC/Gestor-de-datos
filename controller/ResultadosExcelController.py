@@ -84,13 +84,26 @@ class ResultadosExcelController:
 
 
 
-    def get_processed_data(self):
-        # Si no se pasa un modelo, usar el modelo por defecto (self.model
-        
+    def generar_archivo_mensual_controller(self):        
         # Llamar a funciones específicas del modelo
         headers, data = self.model.loading_file()
         
-        # Llamar a otra función específica si es necesario
+        if headers and data:
+                df = pd.DataFrame(data, columns=headers)
+                nombre_mes = datetime.now().strftime("%B").upper()
+                año = datetime.now().strftime("%Y")
+                default_filename = f"{nombre_mes}_{año}.xlsx"
+                
+                directorio = filedialog.askdirectory(title="Seleccionar ubicación para guardar")
+                if directorio:
+                    file_path = f"{directorio}/{default_filename}"
+                    print(f"file: {file_path} \n")
+                    print(f"direc: {directorio}")
+
+                    df.to_excel(file_path, index=False)
+                    self.show_message("Éxito", f"Archivo guardado en: {file_path}")
+        else:
+                self.show_error("Error", "No hay datos para generar el archivo.")
         
         return headers, data
 
