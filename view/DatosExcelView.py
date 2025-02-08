@@ -4,13 +4,13 @@ import pandas as pd
 
 from components.botones import BotonBasePlace
 
-class GeneradorView:
-    def __init__(self, root, volver_a_main_callback):
+class DatosExcelView:
+    def __init__(self, root, volver_a_ajustes_callback):
         self.root = root
         self.frame = tk.Frame(root)
         self.controller = None  # Iniciar sin controlador
         self.frame.pack(fill=tk.BOTH, expand=True)
-        self.volver_a_main_callback = volver_a_main_callback
+        self.volver_a_ajustes_callback = volver_a_ajustes_callback
         self.create_widgets()
 
     def set_controller(self, controller):
@@ -39,10 +39,15 @@ class GeneradorView:
         BotonBasePlace(
             self.frame,
             texto="Volver",
-            comando=self.volver_a_main_callback,  # Asignar el método directamente
+            comando=self.volver_a_limites,  # Asignar el método directamente
             rely=0.6,
             estilo_boton=estilo_boton
         )
+
+    def volver_a_limites(self):
+        """Vuelve a la vista de límites.""" 
+        self.hide()
+        self.volver_a_ajustes_callback()
         
 
     def generate_file(self):

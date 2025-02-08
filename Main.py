@@ -2,22 +2,19 @@ import tkinter as tk
 from components.base_mostrar_view import BaseView
 from components.botones import BotonBasePlace
 
-from controller.GeneradorController import GeneradorController
-from controller.LimitesController import LimitesController
+from controller.AjustesController import AjustesController
 from controller.DocumentosController import DocumentosController
 from controller.ResultadosExcelController import ResultadosExcelController
 from controller.VectorCargaController import VectorCargaController
 from controller.MainController import MainController
 
-from model.GeneradorModel import GeneradorModel
-from model.LimitesModel import LimitesModel
+from model.AjustesModel import AjustesModel
 from model.DocumentosModel import DocumentosModel
 from model.ResultadosExcelModel import ResultadosExcelModel
 from model.VectorCargaModel import VectorCargaModel
 from model.MainModel import MainModel
 
-from view.GeneradorView import GeneradorView
-from view.LimitesView import LimitesView
+from view.AjustesView import AjustesView
 from view.DocumentosView import DocumentosView
 from view.ResultadosExcelView import ResultadosExcelView
 from view.VectorCargaView import VectorCargaView
@@ -42,8 +39,7 @@ class Main:
             self.mostrar_vector_carga_view,
             self.mostrar_resultados_excel_view,
             self.mostrar_documentos_view,
-            self.mostrar_limites_view,
-            #self.mostrar_generador_view
+            self.mostrar_ajustes_view,
         )
         self.main_controller = MainController(self.root, self.main_model, self.views["main_view"])
 
@@ -73,11 +69,6 @@ class Main:
             # Vincular el controlador a la vista
             self.views[view_name].set_controller(controller)
 
-    def mostrar_generador_view(self):
-        """Mostrar la vista de Vector de Carga."""
-        self.limpiar_main_frame()
-        self.registrar_vista("generador_view", GeneradorView, GeneradorModel, GeneradorController)
-        self.show_view("generador_view")    
 
     def mostrar_vector_carga_view(self):
         """Mostrar la vista de Vector de Carga."""
@@ -97,11 +88,11 @@ class Main:
         self.registrar_vista("documentos_view", DocumentosView, DocumentosModel, DocumentosController)
         self.show_view("documentos_view")
 
-    def mostrar_limites_view(self):
+    def mostrar_ajustes_view(self):
         """Mostrar la vista de Documentos."""
         self.limpiar_main_frame()
-        self.registrar_vista("limites_view", LimitesView, LimitesModel, LimitesController)
-        self.show_view("limites_view")
+        self.registrar_vista("ajustes_view", AjustesView, AjustesModel, AjustesController)
+        self.show_view("ajustes_view")
 
     def show_view(self, view_name):
         """Método para mostrar una vista específica."""

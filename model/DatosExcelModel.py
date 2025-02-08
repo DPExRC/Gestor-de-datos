@@ -3,7 +3,7 @@ import pandas as pd
 from openpyxl import load_workbook
 import pkg_resources
 
-class GeneradorModel:
+class DatosExcelModel:
     def __init__(self):
         self.headers = []
         self.all_data = []

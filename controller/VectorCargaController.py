@@ -2,6 +2,8 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 import shutil
 
+import pandas as pd
+
 from view.MainView import MainView
 
 
@@ -10,6 +12,8 @@ class VectorCargaController:
         self.model = model
         self.view = view
         self.volver_a_main_callback = volver_a_main_callback
+        self.select_idx  = set()
+        self.selecty_idx  = set()
 
         self.selected_file = None
         self.is_data_modified = False
@@ -82,25 +86,29 @@ class VectorCargaController:
         """Mostrar una ventana emergente con los Checkbuttons para seleccionar análisis."""
         current_value = self.view.tree.item(item)["values"][self.selected_column]
         
-        # Supongamos que tienes una lista de análisis disponibles
-        available_analisis = self.analysis_columns = ["DQO", "ST", "SST", "SSV", "PH", "AGV", "ALC", "HUM", "TRAN"]
+        # Supongamos que los valores están separados por comas (ajusta según el formato real)
+        selected_values = set(current_value.split(", "))  # Convierte a un conjunto para comparación exacta
+
+        # Lista de análisis disponibles
+        available_analisis = ["DQO", "ST", "SST", "SSV", "PH", "AGV", "ALC", "HUM", "TRAN"]
         
-        # Creamos un diccionario para llevar el estado de cada Checkbutton
+        # Diccionario para almacenar el estado de cada Checkbutton
         self.checkbuttons_state = {}
-        
+
         # Crear la ventana emergente
         analisis_window = tk.Toplevel(self.view.tree)
         analisis_window.title("Seleccionar ANÁLISIS")
-        
+
         # Crear los Checkbuttons
         for analisis in available_analisis:
             var = tk.BooleanVar()
-            # Si el análisis ya está en el valor actual, marcarlo como True
-            if analisis in current_value:
+            # Comparación exacta con los valores seleccionados
+            if analisis in selected_values:
                 var.set(True)
             self.checkbuttons_state[analisis] = var
             checkbutton = tk.Checkbutton(analisis_window, text=analisis, variable=var)
             checkbutton.pack(anchor="w")
+
         
         # Botón de Guardar
         save_button = tk.Button(analisis_window, text="Guardar", command=lambda: self.save_analisis_selection(item, analisis_window))
@@ -129,11 +137,30 @@ class VectorCargaController:
     def save_edit(self, event=None):
         """Guardar el valor editado en la celda."""
         new_value = self.current_entry.get()
-        self.view.tree.set(self.view.tree.selection()[0], column=self.selected_column, value=new_value)
+        item = self.view.tree.selection()[0]
+        col_idx=self.selected_column 
+        current_values =self.view.tree.item(item)["values"]
+        #print(f"Fila en excel base: {current_values}")
 
-        row_data = list(self.model.all_data[self.selected_row_idx])
+        for idx, row in enumerate(self.model.all_data):
+            # Comparar la fila seleccionada con cada fila en all_data
+            if all(
+                (value == selected_value or (pd.isna(value) and pd.isna(selected_value)))
+                for value, selected_value in zip(row, current_values)
+            ):
+                self.selected_idx = idx
+                print(f"Fila repetida encontrada en el índice de all_data: {idx}\nFila en excel: {idx+2}")
+                print(f"tree: {current_values}\nall_data: {row}")
+
+        # Actualizar el valor editado
+        current_values[col_idx] = new_value
+        self.view.tree.item(item, values=current_values)
+
+                
+        row_data = list(self.model.all_data[self.selected_idx])
         row_data[self.selected_column] = new_value
-        self.model.all_data[self.selected_row_idx] = row_data
+
+        self.model.all_data[self.selected_idx] = row_data
 
         self.is_data_modified = True
         self.cancel_edit()
@@ -173,7 +200,11 @@ class VectorCargaController:
         
             self.view.show_message("Éxito", f"Archivo guardado en {destination_path}.")
         except Exception as e:
-            self.view.show_error("Error al guardar archivo", str(e))
+            if str(e) == "'resources/Libro2.xlsx' and 'resources/Libro2.xlsx' are the same file":
+                pass
+            else:
+                self.view.show_error("Error al guardar archivo", str(e))
+
 
         invalid_rows = [row for row in self.model.all_data if "default" in row]
         if invalid_rows:
@@ -210,35 +241,82 @@ class VectorCargaController:
         self.view.update_table(self.model.headers, self.model.all_data)  # Mostrar todos los datos sin filtrar
 
     def add_row(self):
-            """Añadir una nueva fila con valores predeterminados en la posición deseada."""
-            if not self.model.headers:
-                tk.messagebox.showerror("Error", "No se puede añadir una fila sin datos cargados.")
-                return
+        """Añadir una nueva fila con valores predeterminados en la posición deseada."""
+        if not self.model.headers:
+            tk.messagebox.showerror("Error", "No se puede añadir una fila sin datos cargados.")
+            return
 
-            # Crear una nueva fila con valores 'default'
-            new_row = ["default"] * len(self.model.headers)
+        try:
+            # Obtener la fila seleccionada
+            selected_item = self.view.tree.selection()[0]
+            selected_values = self.view.tree.item(selected_item)["values"]
 
-            try:
-                # Obtener la fila seleccionada
-                selected_item = self.view.tree.selection()[0]
-                selected_index = self.view.tree.index(selected_item)  # Índice de la fila seleccionada
+            new_row = [f"(DEFAULT) {value}" for value in selected_values[:-1]] + [selected_values[-1]]
 
-                # Insertar la nueva fila en los datos justo después de la fila seleccionada
-                self.model.all_data.insert(selected_index + 1, new_row)
-            except IndexError:
-                # Si no hay ninguna fila seleccionada, añadir al final
-                self.model.all_data.append(new_row)
+            for idx, row in enumerate(self.model.all_data):
+                # Comparar la fila seleccionada con cada fila en all_data
+                if all(
+                    (value == selected_value or (pd.isna(value) and pd.isna(selected_value)))
+                    for value, selected_value in zip(row, selected_values)
+                ):
+                    self.selecty_idx = idx
+                    print(f"Fila repetida encontrada en el índice {idx}\nFila repetida encontrada en el índice real {idx+2}")
+                    print(f"tree: {selected_values}\nall_data: {row}")
 
-            # Actualizar la tabla con los datos
-            self.view.update_table(self.model.headers ,self.model.all_data)
+            selected_index = self.view.tree.index(selected_item)  # Índice de la fila seleccionada
 
-            tk.messagebox.showinfo("Éxito", "Nueva fila añadida correctamente.")
+            # Insertar la nueva fila en los datos justo después de la fila seleccionada
+            self.model.all_data.insert(self.selecty_idx + 1, new_row)
+        except IndexError:
+            # Si no hay ninguna fila seleccionada, añadir al final
+            self.model.all_data.append(new_row)
+
+        # Guardar los valores de los filtros antes de actualizar la tabla
+        current_filters = [entry.get() for entry in self.view.filters]
+
+        # Actualizar la tabla con los datos
+        self.view.update_table(self.model.headers, self.model.all_data)
+
+        # Aplicar el filtro nuevamente
+        self.apply_filters()
+
+        tk.messagebox.showinfo("Éxito", "Nueva fila añadida correctamente.")
+
+
+    def apply_filters(self, event=None):
+        """Aplicar filtros según el valor de cada entrada."""
+        filter_values = [entry.get() for entry in self.view.filters]
+        
+        # Filtrar los datos
+        filtered_data = [
+            row for row in self.model.all_data
+            if all(
+                (filter_value.lower() in str(value).lower() if filter_value else True)
+                for filter_value, value in zip(filter_values, row)
+            )
+        ]
+        
+        # Actualizar la tabla con los datos filtrados
+        self.view.update_table(self.model.headers, filtered_data)
+
+
             
     def delete_row(self):
         """Eliminar la fila seleccionada con confirmación."""
         try:
             # Obtener la fila seleccionada
             selected_item = self.view.tree.selection()[0]
+            selected_values = self.view.tree.item(selected_item)["values"]
+            for idx, row in enumerate(self.model.all_data):
+                        # Comparar la fila seleccionada con cada fila en all_data
+                        if all(
+                            (value == selected_value or (pd.isna(value) and pd.isna(selected_value)))
+                            for value, selected_value in zip(row, selected_values)
+                        ):
+                            self.select_idx = idx
+                            print(f"Fila repetida encontrada en el índice {idx}\nFila repetida encontrada en el índice real {idx+2}")
+                            print(f"tree: {selected_values}\nall_data: {row}")
+
             row_index = self.view.tree.index(selected_item)  # Índice de la fila seleccionada
 
             # Preguntar al usuario si está seguro de eliminar la fila
@@ -247,7 +325,8 @@ class VectorCargaController:
                 return  # Cancelar eliminación si el usuario selecciona "No"
 
             # Eliminar la fila de los datos y del Treeview
-            del self.model.all_data[row_index]
+            print(self.model.all_data[self.select_idx])
+            del self.model.all_data[self.select_idx]
             self.view.tree.delete(selected_item)
 
             messagebox.showinfo("Éxito", "Fila eliminada correctamente.")

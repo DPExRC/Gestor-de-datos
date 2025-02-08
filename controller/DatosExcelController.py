@@ -1,4 +1,4 @@
-class GeneradorController:
+class DatosExcelController:
     def __init__(self, model, view, volver_a_main_callback):
         self.model = model
         self.view = view

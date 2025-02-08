@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from tkinter import messagebox
 import pandas as pd
 from openpyxl import load_workbook
 import pkg_resources
@@ -7,7 +8,7 @@ class ResultadosExcelModel:
     def __init__(self):
         self.headers = []
         self.all_data = []
-
+        self.df = []
         self.is_modified = None 
         self.headermodel = []
         self.all_datamodel = []
@@ -24,17 +25,42 @@ class ResultadosExcelModel:
             "TRAN": "transmitancia",
         }
 
+
     def load_file(self, file_path):
-        """Cargar datos del archivo Excel seleccionado y procesarlos."""
-        df = pd.read_excel(file_path)
-        self.original_indices = (df.index + 2).tolist()  # Lista con el número de fila original
+        """Carga el archivo y agrega la columna 'ÍNDICE'"""
+        try:
+            # Leer el archivo Excel en un DataFrame
+            df = pd.read_excel(file_path)
+            index = list(df.index)
 
-        self.excel_data = df
-        self.headers = list(df.columns)
-        self.all_data = df.values.tolist() 
+            # Guardar los encabezados de las columnas
+            self.headers = list(df.columns)
+
+            # Convertir los datos del DataFrame a una lista de listas
+            self.all_data = df.fillna("").values.tolist()
+
+            # Guardar el DataFrame en un atributo para poder manipularlo más tarde
+            self.df = df  # Guardar el DataFrame completo para futuras manipulaciones
+
+            return self.headers, self.all_data 
+
+        except Exception as e:
+            self.show_error("Error al cargar el archiivo", str(e))
+            return [], []
+
+    def show_message(self, title, message):
+        """Muestra un mensaje de información."""
+        messagebox.showinfo(title, message)
+
+    def show_error(self, title, message):
+        """Muestra un mensaje de error."""
+        messagebox.showerror(title, message)
+
+    def show_warning(self, title, message):
+        """Muestra un mensaje de advertencia."""
+        messagebox.showwarning(title, message)
 
 
-        return self.headers, self.all_data
 
     def load_default_file(self):
         """Cargar un archivo predeterminado desde los recursos de la aplicación."""
@@ -122,61 +148,47 @@ class ResultadosExcelModel:
         # Usamos pkg_resources para acceder al archivo dentro del paquete
         file_path = pkg_resources.resource_filename(__name__, '../resources/Libro2.xlsx')
 
-        df = pd.read_excel(file_path)
+        # Leer el archivo sin usar ninguna columna como índice
+        df = pd.read_excel(file_path, index_col=None)
 
         if "DIAS DE MUESTREO" in df.columns:
             df = df.drop(columns=["DIAS DE MUESTREO"])
 
-        # Verificar si la columna "PROGRAMA" existe en el archivo
         if "PROGRAMA" in df.columns:
             expanded_rows = []
-
-            # Obtener el año y mes actual (puedes cambiarlo si es necesario)
             hoy = datetime.now()
-            anio = hoy.year
-            mes = hoy.month
+            anio, mes = hoy.year, hoy.month
 
             for _, row in df.iterrows():
-                programas = str(row["PROGRAMA"]).split(",")  # Dividir programas por ","
-                programas = [p.strip() for p in programas if p.strip()]  # Limpiar espacios
-
-                # Convertir días de la semana a fechas reales
+                programas = str(row["PROGRAMA"]).split(",")
+                programas = [p.strip() for p in programas if p.strip()]
                 fechas_reales = self.dias_a_fechas(programas, anio, mes)
 
                 for fecha in fechas_reales:
-                    new_row = row.copy()  # Copiar la fila original
-                    new_row["FECHAS MUESTREO"] = f"{fecha} 00:00"  # Asignar la fecha real
+                    new_row = row.copy()
+                    new_row["FECHAS MUESTREO"] = f"{fecha}"
                     expanded_rows.append(new_row)
 
-            df = pd.DataFrame(expanded_rows)  # Convertir la lista de filas expandidas a DataFrame
+            df = pd.DataFrame(expanded_rows)
+            df = df.drop(columns=["PROGRAMA"], errors="ignore")
 
-            # Eliminar la columna "PROGRAMA" original si existe
-            if "PROGRAMA" in df.columns:
-                df = df.drop(columns=["PROGRAMA"])
-
-        # Crear la columna "ANALISIS" a partir de las columnas de análisis
         if any(col in df.columns for col in self.analysis_columns.values()):
             df["ANALISIS"] = df[list(self.analysis_columns.values())] \
                 .apply(lambda row: ", ".join(row.dropna().astype(str)), axis=1)
             df = df.drop(columns=[col for col in self.analysis_columns.values() if col in df.columns])
 
-            # Separar los análisis por comas y crear filas adicionales
             expanded_rows = []
-
             for _, row in df.iterrows():
-                # Obtener los análisis separados por comas
                 analisis = str(row["ANALISIS"]).split(",")
-                analisis = [a.strip() for a in analisis if a.strip()]  # Limpiar espacios
+                analisis = [a.strip() for a in analisis if a.strip()]
 
-                # Crear una fila para cada análisis
                 for analisis_item in analisis:
-                    new_row = row.copy()  # Copiar la fila original
-                    new_row["ANALISIS"] = analisis_item  # Asignar el análisis específico
+                    new_row = row.copy()
+                    new_row["ANALISIS"] = analisis_item
                     expanded_rows.append(new_row)
 
-            df = pd.DataFrame(expanded_rows)  # Convertir la lista de filas expandidas a DataFrame
+            df = pd.DataFrame(expanded_rows)
 
-        # Insertar columnas "FECHA RECEPCION" y "FECHA DIGITACION" después de "FECHAS DE MUESTREO"
         if "FECHAS MUESTREO" in df.columns:
             idx = df.columns.get_loc("FECHAS MUESTREO") + 1
             df.insert(idx, "FECHA RECEPCION", " ")
@@ -184,27 +196,19 @@ class ResultadosExcelModel:
             df.insert(idx + 3, "RESULTADO", " ")
             df.insert(idx + 4, "UNIDAD", " ")
 
-        # Obtener la lista de columnas sin "ANALISIS"
         columns_except_analysis = [col for col in df.columns if col != "ANALISIS"]
-
-        # Asegurar que "ANALISIS" quede en la antepenúltima posición
         columns_order = columns_except_analysis[:-2] + ["ANALISIS"] + columns_except_analysis[-2:]
-
         df = df[columns_order]
 
         self.headers = list(df.columns)
         self.all_data = df.values.tolist()
+
         return self.headers, self.all_data
 
     def export_to_excel(self, data, headers, file_path):
         """Exportar los datos a un archivo Excel"""
 
-        if not self.is_modified:
-            print("No se ha realizado ningún cambio, no es necesario guardar.")
-            return
-        
         df = pd.DataFrame(data, columns=headers)
-
         if "ANÁLISIS" in df.columns:
             for key, column in self.analysis_columns.items():
                 df[column] = df["ANÁLISIS"].apply(
@@ -229,34 +233,3 @@ class ResultadosExcelModel:
 
         wb.save(file_path)
 
-
-    #def delete_rows_in_file(self, file_path, rows_to_delete):
-    #    """
-    #    Elimina las filas especificadas del archivo Excel original.
-#
-    #    Args:
-    #        file_path (str): Ruta del archivo Excel.
-    #        rows_to_delete (list): Lista de índices de fila a eliminar (1-indexados).
-    #            Se recomienda omitir la fila de encabezados (por ejemplo, usar índices >=2).
-#
-    #    Returns:
-    #        bool: True si la operación fue exitosa, False en caso de error.
-    #    """
-    #    try:
-    #        # Cargar el libro de Excel usando openpyxl
-    #        wb = load_workbook(file_path)
-    #        ws = wb.active
-#
-    #        # Ordenar los índices de filas a eliminar en orden descendente para evitar problemas de reindexación
-    #        for row_idx in sorted(rows_to_delete, reverse=True):
-    #            ws.delete_rows(row_idx)
-#
-    #        # Guardar el libro sobrescribiendo el archivo original
-    #        wb.save(file_path)
-    #        wb.close()
-    #        return True
-    #    except Exception as e:
-    #        print(f"Error al eliminar filas en el archivo: {e}")
-    #        return False
-#
-#

@@ -5,7 +5,7 @@ from datetime import datetime
 from openpyxl import load_workbook
 import pandas as pd
 
-from model import GeneradorModel
+from model import DatosExcelModel
 
 class ResultadosExcelController:
     def __init__(self, model, view, volver_a_main_callback):
@@ -21,6 +21,7 @@ class ResultadosExcelController:
         self.view.set_controller(self)
         self.current_file_path = None
         self.modified_cells = set()
+        self.selected_idx = set()
 
         # Intentar cargar el archivo predeterminado al abrir la vista
         self.cargar_archivo_predeterminado()
@@ -30,20 +31,22 @@ class ResultadosExcelController:
 
     def cargar_archivo_predeterminado(self):
         """Método para cargar el archivo predeterminado desde los recursos"""
-
-
         try:
-                file_path = self.leer_directorio()  # Obtiene la ruta del archivo desde directorios.txt
-                
-                if not file_path:
-                    raise FileNotFoundError("No se encontró una ruta válida en directorios.txt")
+            file_path = self.leer_directorio()  # Obtiene la ruta del archivo desde directorios.txt
+            
+            if not file_path:
+                raise FileNotFoundError("No se encontró una ruta válida en directorios.txt")
 
-                headers, data = self.model.load_file(file_path)
-                self.view.update_table(headers, data, self.model.original_indices)
-                self.current_file_path = file_path
+            headers, data = self.model.load_file(file_path)
+            
+            # Actualiza la tabla en la vista con los datos y los índices de Excel
+            self.view.update_table(headers, data)
+
+
+            self.current_file_path = file_path
 
         except Exception as e:
-                self.view.show_error("Error al cargar archivo", str(e))
+            self.view.show_error("Error al cargar archivo", str(e))
 
     def select_file(self):
         """Abrir un cuadro de diálogo para seleccionar un archivo."""
@@ -116,7 +119,7 @@ class ResultadosExcelController:
         """
 
         try:
-            with open("resources/directorios.txt", 'a') as f:  # Abre el archivo en modo escritura ('w')
+            with open("resources/directorios.txt", 'w') as f:  # Abre el archivo en modo escritura ('w')
                 f.write(file_path + "\n")  # Escribe el contenido
             print(f"Se ha escrito en el archivo")
         except Exception as e:
@@ -177,23 +180,70 @@ class ResultadosExcelController:
         else:
             self.view.show_message("No hay filas vacías", "No se encontraron filas con fechas o resultados vacíos.")
 
+        
+
+    def rangos(self):
+        file = "resources/Rangos.xlsx"
+        try:
+            df = pd.read_excel(file)
+            return df
+        except Exception as e:
+            print(e)
+            
+    def unidad(self):
+        file = "resources/Unidades.xlsx"
+        try:
+            df = pd.read_excel(file)
+            return df
+        except Exception as e:
+            print(e)
+
+
     def save_edit(self, event=None):
         """Guardar la edición de una celda y actualizar 'FECHA DIGITACION' si corresponde."""
         if not self.current_entry:
             return
 
         headers = ["PLANTA", "PUNTO MUESTREO", "FECHAS MUESTREO", "FECHA RECEPCION", "FECHA DIGITACION", "ANALISIS", "RESULTADO", "UNIDAD"]
-
         new_value = self.current_entry.get().strip()
         item = self.view.tree.selection()[0]
         col_idx = self.selected_column
-        row_idx = self.selected_row_idx
+        row_idx = self.selected_row_idx #fila seleccionada en el treeview
         col_name = self.model.headers[col_idx]
+        
+        data = self.model.df
+
+        #print(f"sis: {data.index[1]}")
+        fila1 = data.iloc[0].to_list()
+        # Filtrar las filas que coinciden con current_values
+
+        # Obtener la fila original de la tabla
+        current_values = list(self.view.tree.item(item)["values"])
+        print(f"Fila en excel base: {current_values}")
+        
+        selected_values = self.view.tree.item(item)["values"]
+        for idx, row in enumerate(self.model.all_data):
+            # Comparar la fila seleccionada con cada fila en all_data
+            if all(
+                (value == selected_value or (pd.isna(value) and pd.isna(selected_value)))
+                for value, selected_value in zip(row, selected_values)
+            ):
+                self.selected_idx = idx
+                print(f"Fila repetida encontrada en el índice de all_data: {idx}\nFila en excel: {idx+2}")
+                print(f"tree: {selected_values}\nall_data: {row}")
+
+        # Asegurar que la cantidad de valores en la fila coincida con los headers
+        if len(current_values) > len(self.model.headers):
+            current_values = current_values[:len(self.model.headers)]
+
+        # Actualizar el valor editado
+        current_values[col_idx] = new_value
+        self.view.tree.item(item, values=current_values)
 
         # Buscar índices de columnas
-        if "RESULTADO" in headers and "FECHA DIGITACION" in headers:
-            resultados_idx = headers.index("RESULTADO")
-            fecha_digitacion_idx = headers.index("FECHA DIGITACION")
+        if "RESULTADO"  and "FECHA DIGITACION" in self.model.headers:
+            resultados_idx = self.model.headers.index("RESULTADO")
+            fecha_digitacion_idx = self.model.headers.index("FECHA DIGITACION")
 
             # Si se edita "RESULTADO", actualizar "FECHA DIGITACION"
             if col_idx == resultados_idx:
@@ -206,45 +256,69 @@ class ResultadosExcelController:
         if col_name in ["FECHAS MUESTREO", "FECHA RECEPCION", "FECHA DIGITACION"]:
             if new_value:  # Si hay un valor, validar formato de fecha
                 try:
-                    # Formato con slash
-                    formato = "%d/%m/%Y %H:%M" if col_name == "FECHAS MUESTREO" else "%d/%m/%Y"
+                    formato = "%d/%m/%Y" if col_name == "FECHAS MUESTREO" else "%d/%m/%Y"
                     fecha = pd.to_datetime(new_value, format=formato, errors="coerce")
 
                     if pd.isna(fecha):
                         self.view.show_warning("Advertencia", f"Formato incorrecto en {col_name} (debe ser {formato.replace('%H:%M', 'HH:MM')})")
                         return
-                    if col_name != "FECHAS MUESTREO":  # Si no es muestreo, guardamos solo la fecha sin hora
-                        new_value = fecha.strftime("%d/%m/%Y")  # Convertimos a string con slash
+                    if col_name != "FECHAS MUESTREO":
+                        new_value = fecha.strftime("%d/%m/%Y")
                 except Exception:
                     self.view.show_error("Error", f"Error al convertir {col_name}")
                     return
-            else:  # Si está vacío, preguntar si desea guardar así
+            else:
                 respuesta = messagebox.askyesno(
                     "Confirmación", f"La celda en fila {row_idx + 1}, columna {col_name} está vacía.\n¿Desea guardarla así?"
                 )
                 if not respuesta:
-                    return  # Cancelar guardado
+                    return
 
-        elif col_name == "RESULTADO":  # Validación de números decimales
-            if new_value:  # Si hay un valor, validar número
+        elif col_name == "RESULTADO":  # Validación de rangos
+            if new_value:
                 try:
-                    valor_float = float(new_value)  # Guardar como número
+                    valor_float = float(new_value)
                     if valor_float.is_integer():
                         new_value = int(valor_float)
                     else:
-                        new_value = round(valor_float, 6)  # Redondear a un máximo de 6 decimales sin forzar ceros innecesarios
+                        new_value = round(valor_float, 6)
+
+                    # Verificación de rangos
+                    localidad = self.view.tree.item(item)["values"][headers.index("PLANTA")]
+                    punto_muestreo = self.view.tree.item(item)["values"][headers.index("PUNTO MUESTREO")]
+                    analisis = self.view.tree.item(item)["values"][headers.index("ANALISIS")]
+
+                    df_rangos = self.rangos()
+                    fila_rango = df_rangos[(df_rangos["LOCALIDAD"] == localidad) &
+                                        (df_rangos["PUNTO MUESTREO"] == punto_muestreo) &
+                                        (df_rangos["ANALISIS"] == analisis)]
+
+                    if not fila_rango.empty:
+                        minimo = fila_rango.iloc[0]["MINIMO"]
+                        maximo = fila_rango.iloc[0]["MAXIMO"]
+
+                        if pd.notna(minimo) and valor_float < minimo:
+                            respuesta = messagebox.askyesno("Advertencia", f"El valor ingresado ({valor_float}) es menor al mínimo ({minimo}).\n¿Desea guardarlo?")
+                            if not respuesta:
+                                return
+
+                        if pd.notna(maximo) and valor_float > maximo:
+                            respuesta = messagebox.askyesno("Advertencia", f"El valor ingresado ({valor_float}) es mayor al máximo ({maximo}).\n¿Desea guardarlo?")
+                            if not respuesta:
+                                return
+                       
                 except ValueError:
-                    self.view.show_warning("Advertencia", f"Formato incorrecto en {col_name} (debe ser un número decimal)")
-                    return
-            else:  # Si está vacío, preguntar si se quiere guardar
+                    if new_value is not int or float:  # Verifica si el valor no es un número
+                                self.view.show_error("Formato incorrecto", f"Formato incorrecto en: {col_name}.\nModificar valor: {new_value}")                    
+                                return
+            else:
                 respuesta = messagebox.askyesno(
                     "Confirmación", f"La celda en fila {row_idx + 1}, columna {col_name} está vacía.\n¿Desea guardarla así?"
                 )
                 if not respuesta:
-                    return  # Cancelar guardado
+                    return
 
-        # Guardar el valor editado en el modelo de datos
-        self.model.all_data[row_idx][col_idx] = new_value
+    
         self.modified_cells.add((row_idx, col_idx))
 
         # Guardar el nuevo valor en la celda editada
@@ -252,14 +326,22 @@ class ResultadosExcelController:
         current_values[col_idx] = new_value
         self.view.tree.item(item, values=current_values)
 
+
+        # Si no hay índice original, usar la posición en el treeview (puede ser incorrecto)
         row_index = self.view.tree.index(item)
-        self.model.all_data[row_index] = current_values
+        #print(row_index)
+        #print("-------------------------------DATOS-------------------------------")
+
+        self.model.all_data[self.selected_idx] = current_values
+        print(self.selected_idx)
+        #print(self.model.all_data[idx])
 
         self.is_data_modified = True
 
         if self.current_entry:
             self.current_entry.destroy()
             self.current_entry = None
+
 
 
     def cancel_edit(self, event=None):
@@ -286,6 +368,7 @@ class ResultadosExcelController:
             self.view.show_error("Error", "No hay archivo seleccionado.")
             return
 
+
         try:
             # Verificar si hay datos modificados
             if not self.is_data_modified:
@@ -298,8 +381,14 @@ class ResultadosExcelController:
                 self.view.show_warning("Advertencia", "No se puede guardar el archivo debido a valores 'default' en los datos.")
                 return
 
-            # Exportar los datos al archivo base sobrescribiéndolo
-            self.model.export_to_excel(self.model.all_data, self.model.headers, self.current_file_path)
+            # Crear un DataFrame con los datos actuales
+            df = pd.DataFrame(self.model.all_data, columns=self.model.headers)
+
+            # Guardar el DataFrame actualizado en el archivo
+            df.to_excel(self.current_file_path, index=False) 
+
+            # Restablecer las celdas modificadas
+            self.modified_cells.clear()
 
             self.view.show_message("Éxito", f"Archivo guardado en {self.current_file_path}.")
 
@@ -310,32 +399,34 @@ class ResultadosExcelController:
             self.view.show_error("Error al guardar archivo", str(e))
 
 
+
     def filter_data(self, event=None):
         """Filtrar los datos según las entradas en los filtros, manteniendo la correspondencia con sus índices originales."""
         # Obtener todos los datos e índices originales del modelo
         all_data = self.model.all_data
-        all_indices = self.model.original_indices  # Asegurarse de que exista esta lista en el modelo
 
-        # Combinar datos e índices en una lista de tuplas
-        paired = list(zip(all_data, all_indices))
-        
-        # Aplicar cada filtro sobre la lista de tuplas
+        # Aplicar cada filtro sobre los datos
         for col_idx, filter_entry in enumerate(self.view.filters):
             search_term = filter_entry.get().lower().strip()  # Obtener el término de búsqueda
-            if search_term:  # Si hay un término para filtrar
-                paired = [
-                    (row, orig_idx) for row, orig_idx in paired
-                    if search_term in str(row[col_idx]).lower()
-                ]
-        
-        # Separar la lista filtrada en datos e índices
-        filtered_data = [row for row, orig_idx in paired]
-        filtered_indices = [orig_idx for row, orig_idx in paired]
-        
-        self.filtered_indices = filtered_indices  # Guardar los índices filtrados como un atributo
+            if search_term:
+                # Si hay un término para filtrar
+                all_data = [row for row in all_data if search_term in str(row[col_idx]).lower()]
 
-        # Actualizar la tabla con los datos e índices filtrados
-        self.view.update_table(self.model.headers, filtered_data, filtered_indices)
+        # Actualizar la tabla con los datos filtrados
+        self.view.update_table(self.model.headers, all_data)
+
+        # Si el checkbox de "Seleccionar todas las filas visibles" está marcado, seleccionar las filas visibles
+        if self.view.select_all_var.get():
+            self.select_all_rows()
+
+    def select_all_rows(self):
+        """Seleccionar o deseleccionar todas las filas visibles según el estado del checkbox."""
+        select_all = self.view.select_all_var.get()  # Obtener el estado del checkbox
+
+        for item in self.view.tree.get_children():  # Iterar sobre todas las filas visibles
+            self.view.tree.selection_add(item) if select_all else self.view.tree.selection_remove(item)
+
+
 
     def reset_filters(self):
         """Restablecer los filtros y mostrar todos los datos"""
@@ -360,40 +451,22 @@ class ResultadosExcelController:
             selected_item = self.view.tree.selection()[0]
             row_index = self.view.tree.index(selected_item)  # Índice en la tabla filtrada
 
-            # Verificar si hay un filtro activo (existe filtered_indices)
-            if hasattr(self, 'filtered_indices') and self.filtered_indices:
-                original_indices = self.filtered_indices  # Asegurarse de que esta lista esté actualizada
-                if row_index >= len(original_indices):
-                    tk.messagebox.showerror("Error", "No se encontró la fila en el archivo original.")
-                    return
-
-                # Obtener el índice original de la fila seleccionada
-                original_index = original_indices[row_index]  # Índice original en el archivo Excel
-                # Encontrar el índice en los datos originales y agregar la fila
-                original_data_index = self.model.original_indices.index(original_index)  # Obtener el índice en los datos originales
-                self.model.all_data.insert(original_data_index + 1, new_row)  # Insertar la nueva fila después del índice original
-                # Insertar el índice original correspondiente a la nueva fila
-                self.model.original_indices.insert(original_data_index + 1, original_index + 1)  # Ajuste para el índice original
-
-            else:
-                # Si no hay filtro, insertar la fila después de la fila seleccionada
-                if row_index >= len(self.model.all_data):
-                    tk.messagebox.showerror("Error", "No se encontró la fila en la tabla.")
-                    return
-
-                self.model.all_data.insert(row_index + 1, new_row)
-                new_index = self.model.original_indices[row_index] + 1  # Generar el nuevo índice después de la seleccionada
-                self.model.original_indices.insert(row_index + 1, new_index)
+            # Si no hay filtro, insertar la fila después de la fila seleccionada
+            if row_index >= len(self.model.all_data):
+                tk.messagebox.showerror("Error", "No se encontró la fila en la tabla.")
+                return
+            
+            self.model.all_data.insert(row_index + 1, new_row)
+            new_index = self.model.original_indices[row_index] + 1  # Generar el nuevo índice después de la seleccionada
+            self.model.original_indices.insert(row_index + 1, new_index)
 
             self.is_data_modified = True
 
-        #except IndexError:
-        #    tk.messagebox.showerror("Error", "Seleccione una fila para insertar la nueva fila después de ella.")
 
         except IndexError:
             # Si no hay ninguna fila seleccionada, añadir al final
             self.model.all_data.append(new_row)
-            new_index = max(self.model.original_indices) + 1  # Generar el nuevo índice para el final
+            new_index = max(self.model.all_data) + 1  # Generar el nuevo índice para el final
             self.model.original_indices.append(new_index)
 
         # Actualizar el Treeview con los datos completos (filtrados y originales)
@@ -406,6 +479,80 @@ class ResultadosExcelController:
         tk.messagebox.showinfo("Éxito", "Nueva fila añadida correctamente.")
 
 
+   
+    def print_all_data(self):
+        """Verifica si al menos un filtro tiene un valor y devuelve True si hay filtros activos, False si no."""
+        return any(filter_entry.get().strip() for filter_entry in self.view.filters)
+
+
+    def delete_row(self):
+        """Eliminar las filas seleccionadas con confirmación y actualizar el archivo base."""
+        try:
+            # Obtener las filas seleccionadas en el Treeview
+            selected_items = self.view.tree.selection()  # Devuelve una lista de los elementos seleccionados
+
+            if not selected_items:
+                messagebox.showerror("Error", "Por favor, selecciona al menos una fila para eliminar.")
+                return
+
+            # Confirmación de eliminación
+            confirm = messagebox.askyesno("Confirmación", "¿Estás seguro de que deseas eliminar estas filas?")
+            if not confirm:
+                return
+
+            # Ordenar las filas seleccionadas para asegurarse de eliminar desde el índice más alto
+            selected_items = sorted(selected_items, key=lambda item: self.view.tree.index(item), reverse=True)
+
+            # Iterar sobre las filas seleccionadas para eliminar
+            for selected_item in selected_items:
+                row_index = self.view.tree.index(selected_item)  # Índice en el TreeView (puede estar filtrado)
+                
+                # Obtener todas las filas del Treeview y convertirlas a DataFrame
+                filas = [self.view.tree.item(item)["values"] for item in self.view.tree.get_children()]
+                df_treeview = pd.DataFrame(filas, columns=self.model.df.columns)
+
+
+                if self.is_data_modified is True:
+                    selected_values = self.view.tree.item(selected_item)["values"]
+                    for idx, row in enumerate(self.model.all_data):
+                        # Comparar la fila seleccionada con cada fila en all_data
+                        if all(
+                            (value == selected_value or (pd.isna(value) and pd.isna(selected_value)))
+                            for value, selected_value in zip(row, selected_values)
+                        ):
+                            print(f"Fila repetida encontrada en el índice {idx}:")
+                            print(f"tree: {selected_values}\nall_data: {row}")
+
+                # Buscar la fila seleccionada en el DataFrame
+                resultado = self.model.df[(self.model.df == list(self.view.tree.item(selected_item)["values"])).all(axis=1)]
+
+                if not resultado.empty:
+                    idx = resultado.index[0]  # Obtener el índice de la primera coincidencia
+                else:
+                    messagebox.showerror("Error", "No se pudo encontrar la fila en los datos originales.")
+                    return
+
+                # Asegurarse de que el índice sea válido
+                if idx < len(self.model.all_data):
+                    row_dataframe = self.model.all_data[idx]  # Obtener la fila original
+
+                    print(f"Datos seleccionados para eliminar: {row_dataframe}")
+                    # Eliminar la fila del modelo y del TreeView
+                    del self.model.all_data[idx]
+                    #del self.model.original_indices[idx]
+                    self.view.tree.delete(selected_item)
+                    # Intentar eliminar la fila en el archivo Excel
+                    if self.delete_rows_in_file([idx]):
+                        print(f"Fila {idx} eliminada correctamente del archivo base.")
+                    else:
+                        messagebox.showerror("Error", f"No se pudo eliminar la fila {idx} del archivo base.")
+                        return  # Si falla la eliminación en el archivo Excel, no continuar
+
+            messagebox.showinfo("Éxito", "Filas eliminadas correctamente.")
+            self.is_data_modified = True  # Marcar que se realizaron modificaciones
+
+        except IndexError:
+            messagebox.showerror("Error", "Ocurrió un error al intentar eliminar las filas seleccionadas.")
 
     def delete_rows_in_file(self, rows_to_delete):
         """
@@ -439,130 +586,7 @@ class ResultadosExcelController:
         except Exception as e:
             print(f"Error al eliminar filas en el archivo: {e}")
             return False
-
-    #def delete_row(self):
-    #    """Eliminar una fila seleccionada con confirmación y actualizar el archivo base."""
-    #    try:
-    #        # Obtener la fila seleccionada en el Treeview
-    #        selected_item = self.view.tree.selection()[0]
-    #        row_index = self.view.tree.index(selected_item)  # Índice en la tabla filtrada (TreeView/DataFrame)
-    #        
-    #        original_index = self.model.original_indices[row_index]  # Asegurarse de que exista esta lista en el modelo
-#
-    #        # Confirmación de eliminación
-    #        confirm = messagebox.askyesno("Confirmación", "¿Estás seguro de que deseas eliminar esta fila?")
-    #        if not confirm:
-    #            return
-    #        
-    #        # Eliminar la fila del modelo y del TreeView
-    #        # datos == default
-    #        del self.model.all_data[row_index]
-    #        del self.model.original_indices[row_index]
-#
-    #        # datos !== default
-    #        del self.model.all_data[original_index]
-    #        del self.model.original_indices[row_index]
-    #        self.view.tree.delete(selected_item)
-#
-    #        # Intentar eliminar la fila en el archivo Excel
-    #        if self.delete_rows_in_file([original_index]):  # Índice 1-based para Excel
-    #            messagebox.showinfo("Éxito", "Fila eliminada correctamente del archivo base.")
-    #        else:
-    #            messagebox.showerror("Error", "No se pudo eliminar la fila del archivo base.")
-#
-    #        self.is_data_modified = True  # Marcar cambios
-#
-    #    except IndexError:
-    #        messagebox.showerror("Error", "Por favor, selecciona una fila para eliminar.")
-
-
-
-    def delete_row(self):
-        """Eliminar las filas seleccionadas con confirmación y actualizar el archivo base."""
-        try:
-            # Obtener las filas seleccionadas en el Treeview
-            selected_items = self.view.tree.selection()  # Devuelve una lista de los elementos seleccionados
-            if not selected_items:
-                messagebox.showerror("Error", "Por favor, selecciona al menos una fila para eliminar.")
-                return
-
-            # Confirmación de eliminación
-            confirm = messagebox.askyesno("Confirmación", "¿Estás seguro de que deseas eliminar estas filas?")
-            if not confirm:
-                return
-
-            # Ordenar las filas seleccionadas para asegurarse de eliminar desde el índice más alto
-            # Esto es importante para evitar problemas al eliminar filas mientras se itera
-            selected_items = sorted(selected_items, key=lambda item: self.view.tree.index(item), reverse=True)
-
-            # Iterar sobre las filas seleccionadas para eliminar
-            for selected_item in selected_items:
-                row_index = self.view.tree.index(selected_item)  # Índice en la tabla filtrada (TreeView/DataFrame)
-
-                # Asegurarse de que no se eliminen las filas de encabezado
-                # Si row_index es menor que la longitud de los datos, eliminamos solo las filas de datos
-                if row_index < len(self.model.all_data):
-                    # Obtener el índice original del modelo
-                    original_index = row_index  # Como no hay filtro, el índice filtrado es el mismo que el original
-
-                    # Verificar si la fila contiene 'default'
-                    row_dataframe = self.model.all_data[original_index]
-                    if any("default" in str(cell).lower() for cell in row_dataframe):
-                        # Si contiene 'default', eliminamos solo del DataFrame, no del archivo
-                        del self.model.all_data[original_index]  # Eliminar de all_data
-                        del self.model.original_indices[original_index]  # Eliminar el índice original
-                        self.view.tree.delete(selected_item)  # Eliminar la fila del TreeView
-                        messagebox.showinfo("Éxito", "Fila con 'default' eliminada solo del DataFrame.")
-                    else:
-                        # Eliminar los datos correspondientes de all_data
-                        del self.model.all_data[original_index]  # Eliminar de all_data
-                        del self.model.original_indices[original_index]  # Eliminar el índice original correspondiente
-
-                        # Eliminar la fila del Treeview
-                        self.view.tree.delete(selected_item)
-
-                        # Intentar eliminar la fila en el archivo Excel
-                        if self.delete_rows_in_file([original_index + 2]):  # Enviar índice ajustado para archivo Excel (1-based)
-                            print(f"Fila {original_index + 2} eliminada correctamente del archivo base.")
-                        else:
-                            messagebox.showerror("Error", f"No se pudo eliminar la fila {original_index + 1} del archivo base.")
-                            return  # Si falla la eliminación en el archivo Excel, no continuar
-
-            messagebox.showinfo("Éxito", "Filas eliminadas correctamente.")
-            self.is_data_modified = True  # Marcar que se realizaron modificaciones
-
-        except IndexError:
-            messagebox.showerror("Error", "Ocurrió un error al intentar eliminar las filas seleccionadas.")
-
-    def delete_filtered_rows(self):
-        """Eliminar todas las filas filtradas con confirmación."""
-        if not self.filtered_indices:
-            messagebox.showerror("Error", "No hay filas filtradas para eliminar.")
-            return
-
-        confirm = messagebox.askyesno("Confirmación", "¿Deseas eliminar todas las filas filtradas?")
-        if not confirm:
-            return
-
-        # Guardar índices originales antes de eliminar
-        rows_to_delete = [self.filtered_indices[i] for i in range(len(self.filtered_indices))]
-
-        # Eliminar del modelo
-        for index in sorted(rows_to_delete, reverse=True):  # Eliminar en orden inverso para evitar errores
-            del self.model.all_data[index]
-
-        # Limpiar los índices filtrados y el TreeView
-        self.filtered_indices.clear()
-        self.view.tree.delete(*self.view.tree.get_children())
-
-        # Intentar eliminar en el archivo Excel
-        if self.delete_rows_in_file([i + 1 for i in rows_to_delete]):
-            messagebox.showinfo("Éxito", "Todas las filas filtradas fueron eliminadas del archivo base.")
-        else:
-            messagebox.showerror("Error", "No se pudieron eliminar algunas filas del archivo base.")
-
-        self.is_data_modified = True  # Marcar cambios
-
+            
     def volver_a_main(self):
         """Método para volver a la vista principal."""
         self.volver_a_main_callback()

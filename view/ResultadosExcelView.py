@@ -1,11 +1,7 @@
-from datetime import datetime
-import re
 import tkinter as tk
 from tkinter import ttk, messagebox
-from tkinter import filedialog
 
 import pandas as pd
-import calendar
 import locale
 
 # Configurar el idioma local a español para los nombres de los meses
@@ -26,136 +22,77 @@ class ResultadosExcelView:
         self.controller = controller
 
     def create_widgets(self):
-        """Crea todos los widgets de la vista."""
-        # Crear el marco para el área principal
-        self.frame.pack(fill="both", expand=True)
+        """Crea todos los widgets de la vista con mejor disposición visual."""
+        
+        # Marco principal expandible
+        self.frame.pack(fill="both", expand=True, padx=10, pady=10)
 
-        # Crear un marco para los botones arriba de los filtros
+        # --- MARCO SUPERIOR (BOTONES PRINCIPALES) ---
         self.top_button_frame = tk.Frame(self.frame)
-        self.top_button_frame.pack(fill="x", pady=5)
+        self.top_button_frame.pack(fill="x", pady=1)
+        WithBoton = 20
+        font = ("Arial", 10)
 
-        # Botón para cargar archivo
-        self.load_button = tk.Button(
-            self.top_button_frame, text="Seleccionar archivo", command=self.select_file, width=15
-        )
-        self.load_button.pack(side="left", padx=5)
+        botones_superiores = [
+            ("Seleccionar archivo", self.select_file),
+            ("Generar archivo mensual", self.generar_archivo_mensual),
+            ("Guardar archivo", self.save_to_file),
+            #("Exportar a Excel", self.export_to_excel),
+            ("Volver", self.volver_a_main_callback),
+        ]
 
-        # Botón para generar archivo
-        self.generar_archivo_mensual_button = tk.Button(
-            self.top_button_frame, text="Generar archivo mensual", command=self.generar_archivo_mensual, width=20
-        )
-        self.generar_archivo_mensual_button.pack(side="left", padx=5)
+        for i, (text, command) in enumerate(botones_superiores):
+            btn = tk.Button(self.top_button_frame, text=text, command=command, width=WithBoton, font=font)
+            btn.grid(row=0, column=i, padx=5)
 
-        # Botón para guardar archivo
-        self.save_button = tk.Button(
-            self.top_button_frame, text="Guardar archivo", command=self.save_to_file, width=15
-        )
-        self.save_button.pack(side="left", padx=5)
+        # --- MARCO FILTROS ---
+        # Crear un LabelFrame para encerrar los filtros dentro de un rectángulo
+        self.filter_container = tk.LabelFrame(self.frame, text="Filtros", font=("Arial", 10, "bold"))
+        self.filter_container.pack(fill="x", pady=5, padx=5)
 
-        # Botón para exportar datos
-        self.export_button = tk.Button(
-            self.top_button_frame, text="Exportar a Excel", command=self.export_to_excel, width=15
-        )
-        self.export_button.pack(side="left", padx=5)
+        # Crear el marco interno para organizar los filtros dentro del LabelFrame
+        self.filter_frame = tk.Frame(self.filter_container)
+        self.filter_frame.pack(fill="x", pady=1)
 
-        self.volver_a_main_callback_button = tk.Button(
-            self.top_button_frame, text="Volver", command=self.volver_a_main_callback, width=15
-        )
-        self.volver_a_main_callback_button.pack(side="left", padx=5)
+        # Etiquetas de encabezado y entradas
+        headers = [
+            "LOCALIDAD", "PUNTO\nMUESTREO", "FECHA\nMUESTREO", "FECHA\nRECEPCION",
+            "FECHA\nDIGITACION", "ANALISIS", "RESULTADO", "UNIDAD"
+        ]
 
-        self.vacios = tk.Button(
-            self.top_button_frame, text="Vacios", command=self.vacios, width=15
-        )
-        self.vacios.pack(side="left", padx=5)
+        self.filters = []
 
-        # Crear un marco para los filtros
-        self.filter_frame = tk.Frame(self.frame)
-        self.filter_frame.pack(fill="x", pady=5)
-
-        # Crear etiquetas y entradas para los filtros
-        header_label_0 = tk.Label(self.filter_frame, text="LOCALIDAD")
-        header_label_0.grid(row=0, column=0, padx=5, pady=5)
-        filter_entry_0 = tk.Entry(self.filter_frame, width=5)
-        filter_entry_0.grid(row=1, column=0, padx=5, pady=5, sticky="ew")
-        self.filters.append(filter_entry_0)
-
-        header_label_1 = tk.Label(self.filter_frame, text="PUNTO\nMUESTREO")
-        header_label_1.grid(row=0, column=1, padx=5, pady=5)
-        filter_entry_1 = tk.Entry(self.filter_frame, width=5)
-        filter_entry_1.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
-        self.filters.append(filter_entry_1)
-
-        header_label_2 = tk.Label(self.filter_frame, text="FECHAS\nMUESTREO")
-        header_label_2.grid(row=0, column=2, padx=5, pady=5)
-        filter_entry_2 = tk.Entry(self.filter_frame, width=5)
-        filter_entry_2.grid(row=1, column=2, padx=5, pady=5, sticky="ew")
-        self.filters.append(filter_entry_2)
-
-        header_label_3 = tk.Label(self.filter_frame, text="FECHA\nRECEPCION")
-        header_label_3.grid(row=0, column=3, padx=5, pady=5)
-        filter_entry_3 = tk.Entry(self.filter_frame, width=5)
-        filter_entry_3.grid(row=1, column=3, padx=5, pady=5, sticky="ew")
-        self.filters.append(filter_entry_3)
-
-        header_label_4 = tk.Label(self.filter_frame, text="FECHA\nDIGITACION")
-        header_label_4.grid(row=0, column=4, padx=5, pady=5)
-        filter_entry_4 = tk.Entry(self.filter_frame, width=5)
-        filter_entry_4.grid(row=1, column=4, padx=5, pady=5, sticky="ew")
-        self.filters.append(filter_entry_4)
-
-        header_label_5 = tk.Label(self.filter_frame, text="ANALISIS")
-        header_label_5.grid(row=0, column=5, padx=5, pady=5)
-        filter_entry_5 = tk.Entry(self.filter_frame, width=5)
-        filter_entry_5.grid(row=1, column=5, padx=5, pady=5, sticky="ew")
-        self.filters.append(filter_entry_5)
-
-        header_label_6 = tk.Label(self.filter_frame, text="RESULTADO")
-        header_label_6.grid(row=0, column=6, padx=5, pady=5)
-        filter_entry_6 = tk.Entry(self.filter_frame, width=5)
-        filter_entry_6.grid(row=1, column=6, padx=5, pady=5, sticky="ew")
-        self.filters.append(filter_entry_6)
-
-        header_label_7 = tk.Label(self.filter_frame, text="UNIDAD")
-        header_label_7.grid(row=0, column=7, padx=5, pady=5)
-        filter_entry_7 = tk.Entry(self.filter_frame, width=5)
-        filter_entry_7.grid(row=1, column=7, padx=5, pady=5, sticky="ew")
-        self.filters.append(filter_entry_7)
+        for col, header in enumerate(headers):
+            tk.Label(self.filter_frame, text=header, font=("Arial", 10, "bold")).grid(row=0, column=col, padx=5, pady=5)
+            entry = tk.Entry(self.filter_frame, width=12)
+            entry.grid(row=1, column=col, padx=5, pady=5, sticky="ew")
+            self.filters.append(entry)
 
 
-
-        # Crear un marco para los botones de acción debajo de los filtros
+        # --- MARCO ACCIONES (BAJO FILTROS) ---
         self.button_frame = tk.Frame(self.frame)
         self.button_frame.pack(fill="x", pady=10)
 
-        # Botón para restablecer los filtros
-        self.reset_button = tk.Button(
-            self.button_frame, text="Restablecer filtros", command=self.reset_filters, width=15
-        )
-        self.reset_button.pack(side="left", padx=5)
+        # --- Acción: Checkbox para seleccionar todas las filas visibles ---
 
-        # Botón para añadir fila
-        self.add_row_button = tk.Button(
-            self.button_frame, text="Añadir fila", command=self.add_row, width=15
-        )
-        self.add_row_button.pack(side="left", padx=5)
+        # Botones de acción
+        acciones = [
+            ("Restablecer filtros", self.reset_filters),
+            #("Añadir fila", self.add_row),
+            ("Eliminar fila", self.delete_row),
+            ("Vacios", self.vacios),
+        ]
 
-        # Botón para eliminar fila
-        self.delete_row_button = tk.Button(
-            self.button_frame, text="Eliminar fila", command=self.delete_row, width=15
-        )
-        self.delete_row_button.pack(side="left", padx=5)
+        # Generar los botones
+        for i, (text, command) in enumerate(acciones):
+            btn = tk.Button(self.button_frame, text=text, command=command, width=WithBoton, font=font)
+            btn.grid(row=0, column=i, padx=5)  # Los botones ocupan las primeras columnas
 
-        # Botón para disminuir semana
-        self.disminuir_button = tk.Button(
-            self.button_frame, text="-", command=self.print, width=5
-        )
-        self.disminuir_button.pack(side="left", padx=5)
+        # Checkbox para seleccionar todas las filas visibles
+        self.select_all_var = tk.IntVar()  # Para el checkbox
+        self.select_all_checkbox = tk.Checkbutton(self.button_frame, text="Seleccionar todo", variable=self.select_all_var, command=self.select_all_rows, font=font)
+        self.select_all_checkbox.grid(row=0, column=len(acciones), padx=5)  # El checkbox se coloca justo después de "Vacios"
 
-        # Botón para aumentar semana
-        self.aumentar_button = tk.Button(
-            self.button_frame, text="+", command="", width=5
-        )
-        self.aumentar_button.pack(side="left", padx=5)
 
         # Crear un marco para contener la tabla y la barra de desplazamiento
         self.table_container = tk.Frame(self.frame)
@@ -174,6 +111,7 @@ class ResultadosExcelView:
 
         # Empaquetar la tabla después de configurar la barra de desplazamiento
         self.tree.pack(side="left", fill="both", expand=True)
+
 
     def bind_filter_event(self, filter_function):
         """Vincula el evento de filtro en tiempo real."""
@@ -233,50 +171,13 @@ class ResultadosExcelView:
             print(f"Error al filtrar la semana actual: {e}")
             return data  
 
-    #def update_table(self, headers, data):
-    #    """Actualiza la tabla con solo los datos de la semana actual y reemplaza NaN en ciertas columnas."""
-#
-    #    # Filtrar solo la semana actual o todas las semanas si la fecha de hoy no está en el archivo
-    #    data_filtrada = self.filtrar_semana_actual(data, headers)
-#
-    #    self.tree.delete(*self.tree.get_children())
-    #    self.tree["columns"] = list(range(len(headers)))
-#
-    #    column_widths = {
-    #        "LOCALIDAD": 80,  # Ancho personalizado para la columna "LOCALIDAD"
-    #        "PUNTO MUESTREO": 165,      # Ancho personalizado para la columna "FECHA"
-    #        "FECHAS MUESTREO":115,
-    #        }
-#
-    #    for idx, header in enumerate(headers):
-    #        self.tree.heading(idx, text=header)
-    #        self.tree.heading(idx, text=header)
-#
-    #        # Si la columna está en column_widths, se asigna el ancho personalizado
-    #        if column_widths and header in column_widths:
-    #            width = column_widths[header]
-    #        else:
-    #            width = 100  # Ancho por defecto
-    #        self.tree.column(idx, width=width, anchor="center")
-    #   
-    #    try:
-    #        resultado_idx = headers.index("RESULTADO")
-    #    except ValueError:
-    #        resultado_idx = None  
-#
-    #    for row in data_filtrada:
-    #        formatted_row = list(row)  
-#
-    #        # Convertir las fechas a formato DD/MM/AAAA HH:MM
-    #        for i, value in enumerate(formatted_row):
-    #            if isinstance(value, str) or isinstance(value, datetime):
-    #                try:
-    #                    # Convertir a fecha con pandas
-    #                    date_value = pd.to_datetime(value, errors='coerce')
-    #                    if pd.notna(date_value):
-    #                        formatted_row[i] = date_value.strftime('%d/%m/%Y %H:%M')
-    #                except Exception:
-    #                    pass  # Si no es una fecha válida, dejarlo como está
+    def update_view(self, item, col_idx, new_value):
+        """Actualizar solo una celda de la vista (interfaz gráfica) después de una edición."""
+        current_values = list(self.view.tree.item(item)["values"])
+        current_values[col_idx] = new_value
+        self.view.tree.item(item, values=current_values)
+
+
 
     def update_table(self, headers, data, original_indices=None):
         """
@@ -284,10 +185,11 @@ class ResultadosExcelView:
         Si se proporciona original_indices, se añade una columna extra llamada "ORIGINAL"
         que muestra el índice original de cada fila.
         """
-        # Si se desea mostrar la columna de índices originales, agregarla a los encabezados
-        if original_indices is not None:
-            headers = headers.copy()  # Evitar modificar la lista original de encabezados
-            headers.append("ORIGINAL")
+
+        # Configurar estilo para encabezados en negrita
+        style = ttk.Style()
+        style.configure("Treeview.Heading", font=("Arial", 10, "bold"))#, padding = (1, 10))
+
 
         # Eliminar los elementos existentes en el Treeview
         self.tree.delete(*self.tree.get_children())
@@ -295,9 +197,9 @@ class ResultadosExcelView:
 
         # Definir encabezados y ajustar anchos de columna
         for idx, header in enumerate(headers):
-            self.tree.heading(idx, text=header)
-            # Se puede ajustar el ancho según se desee; en este ejemplo, 100 para todas las columnas
-            self.tree.column(idx, width=100, anchor="center")
+            self.tree.heading(idx, text=header,  anchor="center")  # Alineación centrada
+            self.tree.column(idx, width=100,anchor="center")  # Ajustar ancho
+
 
         # Obtener el índice de la columna "RESULTADO" para formateo especial, si existe
         try:
@@ -322,9 +224,11 @@ class ResultadosExcelView:
                 elif isinstance(value, float) and value.is_integer():
                     formatted_row[resultado_idx] = int(value)
 
+            # Insertar la fila en el Treeview
             self.tree.insert("", "end", values=formatted_row)
 
-
+   
+    
     def show_message(self, title, message):
         """Muestra un mensaje de información."""
         messagebox.showinfo(title, message)
@@ -386,3 +290,7 @@ class ResultadosExcelView:
     def start_edit(self, event):
         if self.controller:
             self.controller.start_edit(event)
+
+    def select_all_rows(self):
+        if self.controller:
+            self.controller.select_all_rows()

@@ -1,4 +1,4 @@
-class LimitesModel:
+class AjustesModel:
     def __init__(self):
         pass  # No hace nada al inicializar
     

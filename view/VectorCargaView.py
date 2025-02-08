@@ -23,72 +23,78 @@ class VectorCargaView:
         # Crear un marco para los botones arriba de los filtros
         self.top_button_frame = tk.Frame(self.frame)
         self.top_button_frame.pack(fill="x", pady=5)
+        WithBoton = 20
+        font = ("Arial", 10)
 
-        # Botón para cargar archivo
-        self.load_button = tk.Button(
-            self.top_button_frame, text="Seleccionar archivo", command=self.select_file, width=15
-        )
-        self.load_button.pack(side="left", padx=5)
+        botones_superiores = [
+            ("Seleccionar archivo", self.select_file),
+            ("Exportar a excel", self.export_to_excel),
+            ("Guardar archivo", self.save_to_file),
+            #("Exportar a Excel", self.export_to_excel),
+            ("Volver", self.volver_a_main_callback),
+        ]
 
-        # Botón para exportar datos
-        self.export_button = tk.Button(
-            self.top_button_frame, text="Exportar a Excel", command=self.export_to_excel, width=15
-        )
-        self.export_button.pack(side="left", padx=5)
+        for i, (text, command) in enumerate(botones_superiores):
+            btn = tk.Button(self.top_button_frame, text=text, command=command, width=WithBoton, font=font)
+            btn.grid(row=0, column=i, padx=5)
 
-        # Botón para guardar archivo
-        self.save_button = tk.Button(
-            self.top_button_frame, text="Guardar archivo", command=self.save_to_file, width=15
-        )
-        self.save_button.pack(side="left", padx=5)
+        # --- MARCO FILTROS ---
+        # Crear un LabelFrame para encerrar los filtros dentro de un rectángulo
+        self.filter_container = tk.LabelFrame(self.frame, text="Filtros", font=("Arial", 10, "bold"))
+        self.filter_container.pack(fill="x", pady=5, padx=5)
 
-        self.volver_a_main_callback_button = tk.Button(
-            self.top_button_frame, text="Volver", command=self.volver_a_main_callback, width=15
-        )
-        self.volver_a_main_callback_button.pack(side="left", padx=5)
+        # Crear el marco interno para organizar los filtros dentro del LabelFrame
+        self.filter_frame = tk.Frame(self.filter_container)
+        self.filter_frame.pack(fill="x", pady=1)
 
-        # Crear un marco para los filtros
-        self.filter_frame = tk.Frame(self.frame)
-        self.filter_frame.pack(fill="x", pady=5)
 
         # Encabezados de columnas para los filtros
-        column_headers = ["LOCALIDAD", "PROGRAMA", "DIAS DE MUESTREO", "PUNTO MUESTREO", "ANÁLISIS"]
+        headers = ["LOCALIDAD", "PROGRAMA", "DIAS DE MUESTREO", "PUNTO MUESTREO", "ANALISIS"]
 
-        # Crear etiquetas y entradas para los filtros
-        for i, header in enumerate(column_headers):
-            header_label = tk.Label(self.filter_frame, text=header)
-            header_label.grid(row=0, column=i, padx=5, pady=5)  # Encabezados en la primera fila
+        self.filters = []
 
-            filter_entry = tk.Entry(self.filter_frame)
-            filter_entry.grid(row=1, column=i, padx=5, pady=5)  # Entradas en la segunda fila
-            self.filters.append(filter_entry)
+        for col, header in enumerate(headers):
+            tk.Label(self.filter_frame, text=header, font=("Arial", 10, "bold")).grid(row=0, column=col, padx=5, pady=5)
+            entry = tk.Entry(self.filter_frame, width=12)
+            entry.grid(row=1, column=col, padx=5, pady=5, sticky="ew")
+            self.filters.append(entry)
 
-        # Crear un marco para los botones de acción debajo de los filtros
+
+        # --- MARCO ACCIONES (BAJO FILTROS) ---
         self.button_frame = tk.Frame(self.frame)
         self.button_frame.pack(fill="x", pady=10)
 
-        # Botón para restablecer los filtros
-        self.reset_button = tk.Button(
-            self.button_frame, text="Restablecer filtros", command=self.reset_filters, width=15
-        )
-        self.reset_button.pack(side="left", padx=5)
+                # Botones de acción
+        acciones = [
+            ("Restablecer filtros", self.reset_filters),
+            ("Añadir fila", self.add_row),
+            ("Eliminar fila", self.delete_row),
+           # ("Vacios", self.vacios),
+        ]
 
-        # Botón para añadir fila
-        self.add_row_button = tk.Button(
-            self.button_frame, text="Añadir fila", command=self.add_row, width=15
-        )
-        self.add_row_button.pack(side="left", padx=5)
+        # Generar los botones
+        for i, (text, command) in enumerate(acciones):
+            btn = tk.Button(self.button_frame, text=text, command=command, width=WithBoton, font=font)
+            btn.grid(row=0, column=i, padx=5)  # Los botones ocupan las primeras columnas
 
-        # Botón para eliminar fila
-        self.delete_row_button = tk.Button(
-            self.button_frame, text="Eliminar fila", command=self.delete_row, width=15
-        )
-        self.delete_row_button.pack(side="left", padx=5)
+        # Crear un marco para contener la tabla y la barra de desplazamiento
+        self.table_container = tk.Frame(self.frame)
+        self.table_container.pack(fill="both", expand=True)
 
         # Crear la tabla para mostrar datos
-        self.tree = ttk.Treeview(self.frame, show="headings")
+        self.tree = ttk.Treeview(self.table_container, show="headings")
         self.tree.bind("<Double-1>", self.start_edit)
-        self.tree.pack(fill="both", expand=True, pady=5)
+
+        # Crear la barra de desplazamiento vertical
+        self.scrollbar = ttk.Scrollbar(self.table_container, orient="vertical", command=self.tree.yview)
+        self.scrollbar.pack(side="right", fill="y")
+
+        # Configurar la tabla para usar la barra de desplazamiento
+        self.tree.configure(yscrollcommand=self.scrollbar.set)
+
+        # Empaquetar la tabla después de configurar la barra de desplazamiento
+        self.tree.pack(side="left", fill="both", expand=True)
+
 
     def bind_filter_event(self, filter_function):
         """Vincula el evento de filtro en tiempo real."""
@@ -97,6 +103,7 @@ class VectorCargaView:
 
         style = ttk.Style()
         style.configure("Treeview.Heading", font=("Arial", 10, "bold"))
+
 
 
     def update_table(self, headers, data):

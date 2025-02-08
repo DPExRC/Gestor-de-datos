@@ -53,7 +53,7 @@ class DocumentosController:
 
 
                 pdf.set_font("Arial", size=10)
-                pdf.cell(200, 10, "CONTROL PROCESO", ln=True, align='C')
+                pdf.cell(200, 10, "LABORATORIO CONTROL PROCESOS", ln=True, align='C')
 
                 pdf.set_font("Arial", size=12)
                 pdf.ln(5)
@@ -129,13 +129,3 @@ class DocumentosController:
         """Método para volver a la vista principal."""
         self.volver_a_main_callback()
 
-#class DocumentosController:
-#    def __init__(self, model, view, volver_a_main_callback):
-#        self.model = model
-#        self.view = view
-#        #self.view.set_controller(self)
-#        self.volver_a_main_callback = volver_a_main_callback
-#
-#    def volver_a_main(self):
-#        """Método para volver a la vista principal."""
-#        self.volver_a_main_callback()
