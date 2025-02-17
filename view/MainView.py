@@ -1,7 +1,5 @@
-import os
-import sys
 import tkinter as tk
-from tkinter import filedialog  # Para seleccionar la ubicación del archivo
+from tkinter import filedialog 
 import pandas as pd
 from PIL import Image, ImageTk
 
@@ -51,23 +49,23 @@ class MainView:
         icono_limites  = cargar_icono("ajustes.png", 40, 40)
 
         # Estilo de botones
-        estilo_boton = {"width": 180, "height": 70, "compound": "left", "anchor": "w","font": ("Arial", 12)}
+        estilo_boton = {"width": 190, "height": 70, "compound": "left", "anchor": "w","font": ("Arial", 12)}
 
         # Crear botones con íconos
         self.boton_datos = tk.Button(
-            self.frame, text="     Datos", image=icono_datos,
+            self.frame, text="    DATOS", image=icono_datos,
             command=self.mostrar_resultados_excel_callback, **estilo_boton
         )
         self.boton_cp = tk.Button(
-            self.frame, text="     Programa CP", image=icono_datoscp,
+            self.frame, text="    PROGRAMA CP", image=icono_datoscp,
             command=self.mostrar_vector_carga_callback, **estilo_boton
         )
         self.boton_despacho = tk.Button(
-            self.frame, text="     Despacho", image=icono_despacho,
+            self.frame, text="    DESPACHO", image=icono_despacho,
             command=self.mostrar_documentos_callback, **estilo_boton
         )
         self.boton_limites = tk.Button(
-            self.frame, text="     Ajustes", image=icono_limites,
+            self.frame, text="    AJUSTES", image=icono_limites,
             command=self.mostrar_limites_callback, **estilo_boton
         )
 

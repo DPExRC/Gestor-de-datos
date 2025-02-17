@@ -86,7 +86,7 @@ class ResultadosExcelView:
         acciones = [
             #("Restablecer filtros", self.reset_filters),
             #("Añadir fila", self.add_row),
-            ("Exportar", self.excel),
+            ("Exportar", self.export_to_excel),
             ("Eliminar fila", self.delete_row),
             ("Vacios", self.vacios),
         ]
@@ -130,59 +130,7 @@ class ResultadosExcelView:
         for filter_entry in self.filters:
             filter_entry.bind("<KeyRelease>", filter_function)
 
-    def filtrar_semana_actual(self, data, headers):
-        """Filtra los datos para incluir solo los de la semana actual, y si no está la fecha, muestra todas las semanas sin cambiar el orden."""
-        try:
-            if "FECHAS MUESTREO" not in headers:
-                return data  
-
-            fecha_idx = headers.index("FECHAS MUESTREO")
-            df = pd.DataFrame(data, columns=headers)
-
-            # Convertir columna de fechas a datetime
-            df["FECHAS MUESTREO"] = pd.to_datetime(df["FECHAS MUESTREO"], dayfirst=True, errors="coerce")
-            df = df.dropna(subset=["FECHAS MUESTREO"])  
-
-            # Obtener la fecha de hoy y calcular la semana actual
-            hoy = pd.Timestamp.today()
-            primer_dia_mes = df["FECHAS MUESTREO"].min()
-            ultimo_dia_mes = df["FECHAS MUESTREO"].max()
-            primer_lunes = primer_dia_mes - pd.DateOffset(days=primer_dia_mes.weekday())
-            semana_actual = ((hoy - primer_lunes).days // 7) + 1
-
-            # Filtrar por la semana actual
-            df["SEMANA"] = ((df["FECHAS MUESTREO"] - primer_lunes).dt.days // 7) + 1
-
-            # Ajustar numeración: La primera semana con datos es la "Semana 1"
-            semanas_unicas = sorted(df["SEMANA"].unique())
-            mapa_semanas = {valor: idx + 1 for idx, valor in enumerate(semanas_unicas)}
-            df["SEMANA"] = df["SEMANA"].map(mapa_semanas)
-
-            if primer_dia_mes <= hoy <= ultimo_dia_mes:
-                semana_hoy = ((hoy - primer_lunes).days // 7) + 1
-                semana_hoy = mapa_semanas.get(semana_hoy, None)  # Ajustar a la numeración del archivo
-            else:
-                semana_hoy = None  # La fecha actual no está en el mes del archivo
-
-            # Si la fecha de hoy no está en el archivo, mostrar todas las semanas sin alterar el orden
-            if semana_hoy and semana_hoy in df["SEMANA"].values:
-                df = df[df["SEMANA"] == semana_hoy]
-            else:
-                # No ordenar las filas, solo filtrar por semanas
-                df = df  # No se realiza ninguna ordenación, se muestran todas las semanas
-
-            # Reemplazar NaN en columnas específicas con ""
-            columnas_a_reemplazar = ["FECHA RECEPCION", "FECHA DIGITACION", "UNIDAD"]
-            for col in columnas_a_reemplazar:
-                if col in df.columns:
-                    df[col] = df[col].fillna("")
-
-            return df[headers].values.tolist()
-        
-        except Exception as e:
-            print(f"Error al filtrar la semana actual: {e}")
-            return data  
-
+   
 
 
     def update_table(self, headers, data, original_indices=None):

@@ -33,7 +33,8 @@ class Main:
     def __init__(self, root):
         self.root = root
         self.root.title("SuralisLAB")
-        self.root.geometry("900x700")
+        self.root.geometry("1200x750")  # Más ancho que alto
+
         self.root.iconbitmap(get_path_images("Icono.ico"))
 
         self.root.resizable(True, True)

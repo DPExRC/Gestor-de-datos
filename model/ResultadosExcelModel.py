@@ -101,10 +101,10 @@ class ResultadosExcelModel:
         dias_semana = {
             "lunes": 0,
             "martes": 1,
-            "miércoles": 2,
+            "miercoles": 2,
             "jueves": 3,
             "viernes": 4,
-            "sábado": 5,
+            "sabado": 5,
             "domingo": 6,
         }
 
@@ -112,29 +112,36 @@ class ResultadosExcelModel:
         for dia in dias:
             dia = dia.strip().lower()
 
-            # Verificar si es un rango de días (ejemplo: lunes-domingo)
+            # Verificar si es un rango de días (ejemplo: viernes-lunes)
             if "-" in dia:
                 dia_inicio, dia_fin = dia.split("-")
                 dia_inicio = dia_inicio.strip()
                 dia_fin = dia_fin.strip()
 
                 if dia_inicio in dias_semana and dia_fin in dias_semana:
-                    # Obtener los índices de los días de la semana
                     inicio = dias_semana[dia_inicio]
                     fin = dias_semana[dia_fin]
 
-                    # Generar todas las fechas entre el inicio y el fin (inclusive)
-                    for fecha in fechas_mes:
-                        if inicio <= fecha.weekday() <= fin:
-                            fechas_reales.append(fecha.strftime("%d/%m/%Y"))
+                    # Si el rango es invertido (viernes-lunes), considerar fin de semana
+                    if inicio <= fin:
+                        for fecha in fechas_mes:
+                            if inicio <= fecha.weekday() <= fin:
+                                fechas_reales.append(fecha.strftime("%d/%m/%Y"))
+                    else:
+                        # Rango invertido: viernes-lunes
+                        for fecha in fechas_mes:
+                            if fecha.weekday() >= inicio or fecha.weekday() <= fin:
+                                fechas_reales.append(fecha.strftime("%d/%m/%Y"))
+
             else:
-                # Si no es un rango, procesar como un solo día
+                # Día individual
                 if dia in dias_semana:
                     for fecha in fechas_mes:
                         if fecha.weekday() == dias_semana[dia]:
                             fechas_reales.append(fecha.strftime("%d/%m/%Y"))
 
         return fechas_reales
+
     
     def get_path(self, filename):
         """Retorna la ruta persistente en 'resources' dentro de AppData."""
@@ -170,8 +177,7 @@ class ResultadosExcelModel:
 
     def loading_file(self):
         """Cargar datos del archivo Excel seleccionado y procesarlos."""
-        # Usamos pkg_resources para acceder al archivo dentro del paquete
-        #file_path = pkg_resources.resource_filename(__name__, '../resources/Libro2.xlsx')
+
 
         file_path = self.get_path("Libro2.xlsx")
         # Leer el archivo sin usar ninguna columna como índice

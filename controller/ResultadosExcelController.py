@@ -4,7 +4,9 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 from datetime import datetime
 
-from openpyxl import load_workbook
+from openpyxl import Workbook, load_workbook
+from openpyxl.styles import Alignment, Font, Border, Side
+
 import pandas as pd
 
 
@@ -46,44 +48,6 @@ class ResultadosExcelController:
 
         except Exception as e:
             self.view.show_error("Error al cargar archivo", str(e))
-
-
-    def excel(self):
-        """
-        Abre el archivo ', obtiene las rutas de archivos .xlsx
-        y imprime su contenido.
-        """
-        ruta_archivo = "resources/DirectoriosLocalidades.txt"
-
-        try:
-            with open(ruta_archivo, "r", encoding="utf-8") as f:
-                for linea in f:
-                    if ":" in linea:
-                        localidad, directorio = linea.strip().split(":", 1)
-                        localidad = localidad.strip("() ").strip()
-                        directorio = directorio.rstrip(')')
-
-                        print(f"\n📂 Localidad: {localidad}")
-                        print(f"📁 Ruta del archivo .xlsx: {directorio}")
-
-                        # Verificar si el archivo .xlsx existe
-                        #if not os.path.exists(directorio):
-                        #    print("❌ El archivo no existe.")
-                        #    continue
-
-                        # Intentar leer el contenido del archivo Excel
-                        try:
-                            df = pd.read_excel(directorio)
-                            print("\n📊 Contenido del archivo:")
-                            print(df.head(), "\n")  # Imprime las primeras filas del archivo
-                        except Exception as e:
-                            print(f"⚠️ Error al leer el archivo {directorio}: {e}")
-                    
-        except FileNotFoundError:
-            print("❌ El archivo 'resources/DirectoriosLocalidades.txt' no existe.")
-        except Exception as e:
-            print(f"⚠️ Error al leer el archivo: {e}")
-
 
 
     def select_file(self):
@@ -140,6 +104,33 @@ class ResultadosExcelController:
                 if directorio:
                     file_path = f"{directorio}/{default_filename}"
                     df.to_excel(file_path, index=False)
+
+                    # Ajustar columnas y centrar datos
+                    workbook = load_workbook(file_path)
+                    sheet = workbook.active
+
+                    # Ajustar ancho de columnas y centrar texto
+                    for col in sheet.columns:
+                        max_length = 10
+                        column_letter = col[0].column_letter
+                        for cell in col:
+                            if cell.value:
+                                max_length = max(max_length, len(str(cell.value)))
+                            cell.alignment = Alignment(horizontal='center', vertical='center')
+                        sheet.column_dimensions[column_letter].width = max_length + 2
+
+                    # Quitar formato de encabezados
+                    for cell in sheet[1]:
+                        cell.font = Font(bold=True)
+                        cell.border = Border(
+                            left=Side(style=None),
+                            right=Side(style=None),
+                            top=Side(style=None),
+                            bottom=Side(style=None)
+                        )
+
+                    workbook.save(file_path)
+        
                     self.show_message("Éxito", f"Archivo guardado en: {file_path}")
                     self.guardar_directorio(file_path)
                     return file_path
@@ -412,7 +403,40 @@ class ResultadosExcelController:
         )
 
         if file_path:
-            self.model.export_to_excel(self.model.all_data, self.model.headers, file_path)
+            # Crear el archivo Excel
+            workbook = Workbook()
+            sheet = workbook.active
+            sheet.title = "Datos"
+
+            # Agregar encabezados
+            for col_num, header in enumerate(self.model.headers, start=1):
+                cell = sheet.cell(row=1, column=col_num, value=header)
+                cell.font = Font(bold=True)
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+                cell.border = Border(
+                    left=Side(style=None),
+                    right=Side(style=None),
+                    top=Side(style=None),
+                    bottom=Side(style=None)
+                )
+
+            # Agregar datos
+            for row_num, row_data in enumerate(self.model.all_data, start=2):
+                for col_num, value in enumerate(row_data, start=1):
+                    cell = sheet.cell(row=row_num, column=col_num, value=value)
+                    cell.alignment = Alignment(horizontal='center', vertical='center')
+
+            # Ajustar ancho de columnas
+            for col in sheet.columns:
+                max_length = 10
+                col_letter = col[0].column_letter
+                for cell in col:
+                    if cell.value:
+                        max_length = max(max_length, len(str(cell.value)))
+                sheet.column_dimensions[col_letter].width = max_length + 2
+
+            # Guardar el archivo
+            workbook.save(file_path)
             self.view.show_message("Éxito", f"Datos exportados a {file_path}")
 
     def save_to_file(self):
