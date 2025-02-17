@@ -59,6 +59,13 @@ class VectorCargaView:
             entry.grid(row=1, column=col, padx=5, pady=5, sticky="ew")
             self.filters.append(entry)
 
+        # Botón Restablecer Filtros a la derecha del último entry
+        btn_restablecer_filtros = tk.Button(
+            self.filter_frame, text="Restablecer filtros", command=self.reset_filters,
+            width=15, font=("Arial", 10)
+        )
+        btn_restablecer_filtros.grid(row=1, column=len(headers), padx=5, pady=5, sticky="w")
+
 
         # --- MARCO ACCIONES (BAJO FILTROS) ---
         self.button_frame = tk.Frame(self.frame)
@@ -66,7 +73,7 @@ class VectorCargaView:
 
                 # Botones de acción
         acciones = [
-            ("Restablecer filtros", self.reset_filters),
+            #("Restablecer filtros", self.reset_filters),
             ("Añadir fila", self.add_row),
             ("Eliminar fila", self.delete_row),
            # ("Vacios", self.vacios),

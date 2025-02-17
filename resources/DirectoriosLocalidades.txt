@@ -1,0 +1,20 @@
+Fresia: C:/Users/david/OneDrive/Desktop/10.253.40.31/AreaOrganizacional/Operaciones/EDAR/Datos Operadores Plantas/EJEMPLO.xlsx
+Calbuco : C:/Users/david/OneDrive/Desktop/Pruebas- SuralisLab/FEBRERO_2025.xlsx
+Panguipulli: Sin asignar
+Paillaco: Sin asignar
+Lanco: Sin asignar
+Futrono: C:/Users/david/OneDrive/Desktop/10.253.40.31/AreaOrganizacional/Operaciones/EDAR/Datos Operadores Plantas/EJEMPLO.xlsx
+Osorno: Sin asignar
+San Pablo: Sin asignar
+Frutillar : C:/Users/david/OneDrive/Desktop/10.253.40.31/AreaOrganizacional/Operaciones/EDAR/Datos Operadores Plantas/EJEMPLO.xlsx
+Cocule: C:/Users/david/OneDrive/Desktop/10.253.40.31/AreaOrganizacional/Operaciones/EDAR/Datos Operadores Plantas/EJEMPLO.xlsx
+Corral: C:/Users/david/OneDrive/Desktop/10.253.40.31/AreaOrganizacional/Operaciones/EDAR/Datos Operadores Plantas/EJEMPLO.xlsx
+San Jose: Sin asignar
+Los Muermos: Sin asignar
+Lago Ranco: Sin asignar
+Purranque: Sin asignar
+Los Lagos: Sin asignar
+Maullin: Sin asignar
+Rio Negro: Sin asignar
+Llanquihue: Sin asignar
+Mafil: Sin asignar

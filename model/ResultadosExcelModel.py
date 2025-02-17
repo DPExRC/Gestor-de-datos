@@ -1,4 +1,6 @@
 from datetime import datetime, timedelta
+import os
+import sys
 from tkinter import messagebox
 import pandas as pd
 from openpyxl import load_workbook
@@ -26,12 +28,12 @@ class ResultadosExcelModel:
         }
 
 
+
     def load_file(self, file_path):
         """Carga el archivo y agrega la columna 'ÍNDICE'"""
         try:
             # Leer el archivo Excel en un DataFrame
             df = pd.read_excel(file_path)
-            index = list(df.index)
 
             # Guardar los encabezados de las columnas
             self.headers = list(df.columns)
@@ -42,11 +44,13 @@ class ResultadosExcelModel:
             # Guardar el DataFrame en un atributo para poder manipularlo más tarde
             self.df = df  # Guardar el DataFrame completo para futuras manipulaciones
 
+
             return self.headers, self.all_data 
 
         except Exception as e:
-            self.show_error("Error al cargar el archiivo", str(e))
+            self.show_error("Error al cargar el archivo", str(e))
             return [], []
+
 
     def show_message(self, title, message):
         """Muestra un mensaje de información."""
@@ -62,17 +66,7 @@ class ResultadosExcelModel:
 
 
 
-    def load_default_file(self):
-        """Cargar un archivo predeterminado desde los recursos de la aplicación."""
-        try:
-            # Usamos pkg_resources para acceder al archivo dentro del paquete
-            file_path = pkg_resources.resource_filename(__name__, '../resources/Libro2.xlsx')
 
-            return file_path # self.load_file(file_path)
-        except Exception as e:
-            print(f"Error al cargar el archivo predeterminado: {e}")
-            return [], []  # Retorna vacío si ocurre un error
-        
     def loading_default_file(self):
         """Cargar un archivo predeterminado desde los recursos de la aplicación."""
         try:
@@ -142,12 +136,44 @@ class ResultadosExcelModel:
 
         return fechas_reales
     
+    def get_path(self, filename):
+        """Retorna la ruta persistente en 'resources' dentro de AppData."""
+        base_dir = os.path.join(os.environ['APPDATA'], "SuralisLab", "resources")
+        os.makedirs(base_dir, exist_ok=True)
+        return os.path.join(base_dir, filename)
+
+    def unidad(self):
+        file = self.get_path("Unidades.xlsx")
+
+        try:
+            df = pd.read_excel(file)
+            return df
+        except Exception as e:
+            print(e)
+
+    def asignar_unidades(self):
+        try:
+            df_unidades = self.unidad()
+            unidad_idx = self.headers.index("UNIDAD")
+            analisis_idx = self.headers.index("ANALISIS")
+
+            for row in self.all_data:
+                analisis_lower = str(row[analisis_idx]).strip().lower()
+                unidad = df_unidades.loc[
+                    df_unidades["ANALISIS"].str.lower() == analisis_lower, "UNIDAD"
+                ].values
+                if unidad.size > 0:
+                    row[unidad_idx] = unidad[0]
+        except Exception as e:
+            print(f"Error al asignar unidades: {e}")
+
 
     def loading_file(self):
         """Cargar datos del archivo Excel seleccionado y procesarlos."""
         # Usamos pkg_resources para acceder al archivo dentro del paquete
-        file_path = pkg_resources.resource_filename(__name__, '../resources/Libro2.xlsx')
+        #file_path = pkg_resources.resource_filename(__name__, '../resources/Libro2.xlsx')
 
+        file_path = self.get_path("Libro2.xlsx")
         # Leer el archivo sin usar ninguna columna como índice
         df = pd.read_excel(file_path, index_col=None)
 
@@ -202,6 +228,8 @@ class ResultadosExcelModel:
 
         self.headers = list(df.columns)
         self.all_data = df.values.tolist()
+                    # Asignar unidades automáticamente después de cargar los datos
+        self.asignar_unidades()
 
         return self.headers, self.all_data
 

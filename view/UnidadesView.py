@@ -1,12 +1,8 @@
-from tkinter import filedialog, messagebox, ttk
+from tkinter import messagebox, ttk
 import tkinter as tk
-
-from openpyxl import load_workbook
 import pandas as pd
 
-from components.botones import BotonBasePlace
-from controller.UnidadesController import UnidadesController
-from model.UnidadesModel import UnidadesModel
+
 
 
 class UnidadesView:
@@ -17,19 +13,10 @@ class UnidadesView:
         self.volver_a_ajustes_callback = volver_a_ajustes_callback
         self.filters =  []
         self.modified_cells = set()
-        self.current_file_path = None
 
-        self.model = UnidadesModel()
         self.create_widgets()
 
-        # Obtener los datos desde el modelo
-        #self.headers, self.all_data = self.model.obtener_datos()
-        self.headers, self.all_data = self.model.predeterminado()
 
-
-        # Si los datos fueron obtenidos correctamente, actualizamos la tabla
-        if self.headers and self.all_data:
-            self.update_table(self.headers, self.all_data)
     
     def set_controller(self, controller):
         self.controller = controller
@@ -43,20 +30,7 @@ class UnidadesView:
 
         # Convertir a DataFrame para manipulación de datos
         df = pd.DataFrame(all_data, columns=headers)
-
-        # Depuración: Mostrar los datos originales
-        print("Headers originales:", headers)
-        print("Datos originales:")
-        print(df)
-
-        # Reemplazar valores NaN por cadenas vacías
-        #df = df.dropna(axis=1, how='all')  # Eliminar columnas completamente vacías
-        #df = df.fillna("0")  # Reemplazar NaN restantes con cadenas vacías
-
-        # Depuración: Ver qué columnas se eliminaron
-        print("Headers después de eliminar columnas vacías:", df.columns.tolist())
-        print("Datos después del procesamiento:")
-        print(df)
+        df = df.fillna("")  # Reemplazar NaN restantes con cadenas vacías
 
         # Actualizar headers y all_data sin valores NaN
         headers = df.columns.tolist()
@@ -75,24 +49,36 @@ class UnidadesView:
             self.tree.insert("", "end", values=row)
 
     def create_widgets(self):
-        self.top_frame = tk.Frame(self.frame, height=100)  
-        self.top_frame.pack(fill="x", pady=10)
+        self.top_frame = tk.Frame(self.frame)  
+        self.top_frame.pack(fill="x")
         self.top_frame.pack_propagate(False)  
 
+
+        # --- MARCO FILTROS ---
+        # Crear un LabelFrame para encerrar los filtros dentro de un rectángulo
+        self.filter_container = tk.LabelFrame(self.frame, text="Filtros", font=("Arial", 10, "bold"))
+        self.filter_container.pack(fill="x", pady=0, padx=5)
+
         # Filtros
-        self.entry_frame = tk.Frame(self.frame)
-        self.entry_frame.pack(fill="x", pady=5, padx=10)
+        self.filter_frame = tk.Frame(self.filter_container)
+        self.filter_frame.pack(fill="x", pady=0)
+
 
         headers = ["ANALISIS", "UNIDAD"]
-        self.entry_fields = {}
+        self.entry_fields = []
 
-        for i, header in enumerate(headers):
-            label = tk.Label(self.top_frame, text=header, font=("Arial", 9, "bold"))
-            label.grid(row=0, column=i, padx=5, pady=2)
-
-            entry = tk.Entry(self.top_frame, width=15)
-            entry.grid(row=1, column=i, padx=5, pady=2)
-            self.entry_fields[header] = entry
+        for col, header in enumerate(headers):
+            tk.Label(self.filter_frame, text=header, font=("Arial", 10, "bold")).grid(row=0, column=col, padx=5, pady=5)
+            entry = tk.Entry(self.filter_frame, width=12)
+            entry.grid(row=1, column=col, padx=5, pady=5, sticky="ew")
+            self.filters.append(entry)
+        
+        # Botón Restablecer Filtros a la derecha del último entry
+        btn_restablecer_filtros = tk.Button(
+            self.filter_frame, text="Restablecer filtros", command="",
+            width=15, font=("Arial", 10)
+        )
+        btn_restablecer_filtros.grid(row=1, column=len(headers), padx=5, pady=5, sticky="w")
 
         # Botones debajo de los filtros
         self.button_frame = tk.Frame(self.frame)
@@ -125,7 +111,6 @@ class UnidadesView:
         self.scrollbar.pack(side="right", fill="y")
         self.tree.pack(side="left", fill="both", expand=True)
 
-        #self.tree.bind("<Double-1>", self.start_edit)
 
     def bind_filter_event(self, filter_function):
         """Vincula el evento de filtro en tiempo real."""
@@ -137,6 +122,8 @@ class UnidadesView:
         self.hide()
         self.volver_a_ajustes_callback()
 
+
+
     def show(self):
         """Muestra esta vista."""
         self.frame.pack(fill="both", expand=True)
@@ -147,112 +134,29 @@ class UnidadesView:
 
         
     def start_edit(self, event=None):
-        """Iniciar la edición de una celda seleccionada."""
-        item = self.tree.selection()[0]
-        col = self.tree.identify_column(event.x)
-        col_idx = int(col.replace("#", "")) - 1
-        self.selected_row_idx = self.tree.index(item)
-        self.selected_column = col_idx
-        x, y, width, height = self.tree.bbox(item, column=col)
-        value = self.tree.item(item)["values"][col_idx]
-        
-        self.current_entry = tk.Entry(self.tree)
-        self.current_entry.insert(0, value)
-        self.current_entry.place(x=x, y=y, width=width, height=height)
-        self.current_entry.focus()
-        self.current_entry.bind("<Return>", self.save_edit)
-        self.current_entry.bind("<FocusOut>", self.cancel_edit)
-        # Registrar la celda modificada
-        self.modified_cells.add((self.selected_row_idx, self.selected_column))  # Usamos un set para evitar duplicados
+        if self.controller:
+            self.controller.start_edit(event)      
 
     def save_edit(self, event=None):
-        """Guardar la edición de una celda y actualizar 'FECHA DIGITACION' si corresponde."""
-        if not self.current_entry:
-            return
-
-        new_value = self.current_entry.get().strip()
-        item = self.tree.selection()[0]
-        row_idx = self.tree.index(item)
-        col_idx = self.selected_column
-
-        # Actualizar en self.all_data
-        self.all_data[row_idx][col_idx] = new_value  
-        self.model.all_data[row_idx][col_idx] = new_value  # Asegurar que se refleje en el modelo
-
-        # Guardar el nuevo valor en la tabla
-        current_values = list(self.tree.item(item)["values"])
-        current_values[col_idx] = new_value
-        self.tree.item(item, values=current_values)
-
-        self.is_data_modified = True  # Bandera de modificación
-        self.modified_cells.add((row_idx, col_idx))  
-
-        # Destruir la entrada
-        if self.current_entry:
-            self.current_entry.destroy()
-            self.current_entry = None
+        if self.controller:
+            self.controller.save_edit()
 
 
     def cancel_edit(self, event=None):
-        """Cancelar la edición y cerrar el Entry."""
-        if self.current_entry:
-            self.current_entry.destroy()
-            self.current_entry = None
+        if self.controller:
+            self.controller.cancel_edit()
 
     def save_to_file(self):
-            """Guardar los datos modificados en el archivo Excel en la ruta actual."""
-            if not self.current_file_path:
-                self.show_error("Error", "No hay archivo seleccionado.")
-                return
-
-            try:
-                # Verificar si hay datos modificados
-                if not self.is_data_modified:
-                    self.show_warning("Advertencia", "No hay cambios para guardar.")
-                    return
-
-                # Verificar si hay filas con el valor "default" en alguna de sus celdas
-                invalid_rows = [row for row in self.model.all_data if any("default" in str(cell).lower() for cell in row)]
-                if invalid_rows:
-                    self.show_warning("Advertencia", "No se puede guardar el archivo debido a valores 'default' en los datos.")
-                    return
-
-                # Exportar los datos al archivo base sobrescribiéndolo
-                self.model.export_to_excel(self.model.all_data, self.model.headers, self.current_file_path)
-
-                self.show_message("Éxito", f"Archivo guardado en {self.current_file_path}.")
-
-                # Restablecer la bandera de modificación
-                self.is_data_modified = False
-
-            except Exception as e:
-                self.show_error("Error al guardar archivo", str(e))
+        if self.controller:
+            self.controller.save_to_file()
 
 
 
     def export_to_excel(self):
-            """Exportar los datos a un archivo Excel"""
-            file_path = "resources/Unidades.xlsx"
+        if self.controller:
+            self.controller.export_to_excel()
 
-            if file_path:
-                self.export(self.model.all_data, self.headers, file_path)
-                self.show_message("Éxito", f"Datos exportados a {file_path}")
 
-    def export(self, data, headers, file_path):
-        """Exportar los datos modificados a un archivo Excel"""
-        df = pd.DataFrame(self.model.all_data, columns=self.headers)  # Usar datos actualizados
-
-        df.to_excel(file_path, index=False)
-
-        wb = load_workbook(file_path)
-        ws = wb.active
-
-        for col in ws.columns:
-            max_length = max(len(str(cell.value)) for cell in col if cell.value)
-            column_letter = col[0].column_letter
-            ws.column_dimensions[column_letter].width = max_length + 2
-
-        wb.save(file_path)
 
 
     def show_message(self, title, message):

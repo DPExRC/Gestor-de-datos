@@ -36,15 +36,6 @@ class VectorCargaModel:
         self.all_data = df.values.tolist()
         return self.headers, self.all_data
     
-    def load_default_file(self):
-        """Cargar un archivo predeterminado desde los recursos de la aplicación"""
-        try:
-            # Usamos pkg_resources para acceder al archivo dentro del paquete
-            file_path = pkg_resources.resource_filename(__name__, '../resources/Libro2.xlsx')
-            return self.load_file(file_path)
-        except Exception as e:
-            print(f"Error al cargar el archivo predeterminado: {e}")
-            return [], []  # Retorna vacío si ocurre un error
 
     def export_to_excel(self, data, headers, file_path):
         """Exportar los datos a un archivo Excel"""

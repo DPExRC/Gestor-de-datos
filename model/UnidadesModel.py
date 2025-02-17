@@ -1,3 +1,5 @@
+import os
+import sys
 from tkinter import filedialog
 import pandas as pd
 
@@ -22,8 +24,15 @@ class UnidadesModel:
         self.predeterminado()
 
 
+    def get_path(self, filename):
+        """Retorna la ruta persistente en 'resources' dentro de AppData."""
+        base_dir = os.path.join(os.environ['APPDATA'], "SuralisLab", "resources")
+        os.makedirs(base_dir, exist_ok=True)
+        return os.path.join(base_dir, filename)
+
     def predeterminado(self):
-        ruta_archivo = "resources/Unidades.xlsx"
+        ruta_archivo = self.get_path("Unidades.xlsx")
+
 
         try:
             # Cargar el archivo Excel en un DataFrame
@@ -55,7 +64,7 @@ class UnidadesModel:
 
 
     def obtener_datos(self):
-        ruta_archivo = "resources/Libro2.xlsx"
+        ruta_archivo = self.get_path("Libro2.xlsx")
 
         try:
             # Cargar el archivo Excel en un DataFrame

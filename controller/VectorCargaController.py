@@ -1,3 +1,5 @@
+import os
+import sys
 import tkinter as tk
 from tkinter import filedialog, messagebox
 import shutil
@@ -28,13 +30,17 @@ class VectorCargaController:
 
         # Asociar el evento de "KeyRelease" a los campos de filtro para activar la actualización automática
         self.view.bind_filter_event(self.filter_data)
+    
+    def get_path(self, filename):
+        """Retorna la ruta persistente en 'resources' dentro de AppData."""
+        base_dir = os.path.join(os.environ['APPDATA'], "SuralisLab", "resources")
+        os.makedirs(base_dir, exist_ok=True)
+        return os.path.join(base_dir, filename)
 
     def cargar_archivo_predeterminado(self):
-        """Método para cargar el archivo predeterminado desde los recursos"""
-        headers, data = self.model.load_default_file()
-        
+        """Método para cargar el archivo predeterminado desde los recursos"""        
         try:
-            file_path = "resources/Libro2.xlsx"
+            file_path = self.get_path("Libro2.xlsx")
             headers, data = self.model.load_file(file_path)
             self.view.update_table(headers, data)
             self.current_file_path = file_path
@@ -97,7 +103,7 @@ class VectorCargaController:
 
         # Crear la ventana emergente
         analisis_window = tk.Toplevel(self.view.tree)
-        analisis_window.title("Seleccionar ANÁLISIS")
+        analisis_window.title("sELECCIONAR ANÁLISIS")
 
         # Crear los Checkbuttons
         for analisis in available_analisis:
@@ -189,9 +195,10 @@ class VectorCargaController:
             self.view.show_error("Error", "No hay archivo seleccionado.")
             return
 
+
         try:
             # Ruta destino en resources
-            destination_path = "resources/Libro2.xlsx"
+            destination_path = self.get_path("Libro2.xlsx")
             
             self.model.export_to_excel(self.model.all_data, self.model.headers, self.current_file_path)
         

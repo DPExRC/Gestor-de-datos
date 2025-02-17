@@ -68,6 +68,13 @@ class ResultadosExcelView:
             entry.grid(row=1, column=col, padx=5, pady=5, sticky="ew")
             self.filters.append(entry)
 
+        # Botón Restablecer Filtros a la derecha del último entry
+        btn_restablecer_filtros = tk.Button(
+            self.filter_frame, text="Restablecer filtros", command=self.reset_filters,
+            width=15, font=("Arial", 10)
+        )
+        btn_restablecer_filtros.grid(row=1, column=len(headers), padx=5, pady=5, sticky="w")
+
 
         # --- MARCO ACCIONES (BAJO FILTROS) ---
         self.button_frame = tk.Frame(self.frame)
@@ -77,8 +84,9 @@ class ResultadosExcelView:
 
         # Botones de acción
         acciones = [
-            ("Restablecer filtros", self.reset_filters),
+            #("Restablecer filtros", self.reset_filters),
             #("Añadir fila", self.add_row),
+            ("Exportar", self.excel),
             ("Eliminar fila", self.delete_row),
             ("Vacios", self.vacios),
         ]
@@ -111,6 +119,10 @@ class ResultadosExcelView:
 
         # Empaquetar la tabla después de configurar la barra de desplazamiento
         self.tree.pack(side="left", fill="both", expand=True)
+
+    def excel(self):
+        if self.controller:
+            self.controller.excel()
 
 
     def bind_filter_event(self, filter_function):
@@ -170,12 +182,6 @@ class ResultadosExcelView:
         except Exception as e:
             print(f"Error al filtrar la semana actual: {e}")
             return data  
-
-    def update_view(self, item, col_idx, new_value):
-        """Actualizar solo una celda de la vista (interfaz gráfica) después de una edición."""
-        current_values = list(self.view.tree.item(item)["values"])
-        current_values[col_idx] = new_value
-        self.view.tree.item(item, values=current_values)
 
 
 
@@ -286,6 +292,10 @@ class ResultadosExcelView:
     def save_to_file(self):
         if self.controller:
             self.controller.save_to_file()
+    
+    #def save_edit(self, event):
+    #    if self.controller:
+    #        self.controller.save_edit(event)
 
     def start_edit(self, event):
         if self.controller:

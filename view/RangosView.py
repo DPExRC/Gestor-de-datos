@@ -1,12 +1,7 @@
-from tkinter import filedialog, messagebox, ttk
+from tkinter import  messagebox, ttk
 import tkinter as tk
-
-from openpyxl import load_workbook
 import pandas as pd
 
-from components.botones import BotonBasePlace
-from controller.RangosController import RangosController
-from model.RangosModel import RangosModel
 
 
 class RangosView:
@@ -16,20 +11,11 @@ class RangosView:
         self.frame.pack(fill=tk.BOTH, expand=True)
         self.volver_a_ajustes_callback = volver_a_ajustes_callback
         self.filters =  []
-        self.modified_cells = set()
+     
         self.current_file_path = None
 
-        self.model = RangosModel()
         self.create_widgets()
 
-        # Obtener los datos desde el modelo
-        #self.headers, self.all_data = self.model.obtener_datos()
-        self.headers, self.all_data = self.model.predeterminado()
-
-
-        # Si los datos fueron obtenidos correctamente, actualizamos la tabla
-        if self.headers and self.all_data:
-            self.update_table(self.headers, self.all_data)
     
     def set_controller(self, controller):
         self.controller = controller
@@ -45,7 +31,7 @@ class RangosView:
         df = pd.DataFrame(all_data, columns=headers)
 
         # Reemplazar valores NaN por cadenas vacías
-        df = df.dropna(axis=1, how='all')  # Eliminar columnas completamente vacías
+        #df = df.dropna(axis=1, how='all')  # Eliminar columnas completamente vacías
         df = df.fillna("")  # Reemplazar NaN restantes con cadenas vacías
 
         # Actualizar headers y all_data sin valores NaN
@@ -65,31 +51,41 @@ class RangosView:
             self.tree.insert("", "end", values=row)
 
     def create_widgets(self):
-        self.top_frame = tk.Frame(self.frame, height=100)  
-        self.top_frame.pack(fill="x", pady=10)
+        self.top_frame = tk.Frame(self.frame)  
+        self.top_frame.pack(fill="x")
         self.top_frame.pack_propagate(False)  
 
+        # --- MARCO FILTROS ---
+        # Crear un LabelFrame para encerrar los filtros dentro de un rectángulo
+        self.filter_container = tk.LabelFrame(self.frame, text="Filtros", font=("Arial", 10, "bold"))
+        self.filter_container.pack(fill="x", pady=0, padx=5)
+
         # Filtros
-        self.entry_frame = tk.Frame(self.frame)
-        self.entry_frame.pack(fill="x", pady=5, padx=10)
+        self.filter_frame = tk.Frame(self.filter_container)
+        self.filter_frame.pack(fill="x", pady=0)
 
-        headers = ["LOCALIDAD", "PUNTO MUESTREO", "ANALISIS", "MINIMO", "MAXIMO"]
-        self.entry_fields = {}
+        headers = ["LOCALIDAD", "PUNTO MUESTREO", "ANALISIS", "MINIMO", "MAXIMO","UBICACION"]
+        self.filters = []
 
-        for i, header in enumerate(headers):
-            label = tk.Label(self.top_frame, text=header, font=("Arial", 9, "bold"))
-            label.grid(row=0, column=i, padx=5, pady=2)
+        for col, header in enumerate(headers):
+            tk.Label(self.filter_frame, text=header, font=("Arial", 10, "bold")).grid(row=0, column=col, padx=5, pady=5)
+            entry = tk.Entry(self.filter_frame, width=12)
+            entry.grid(row=1, column=col, padx=5, pady=5, sticky="ew")
+            self.filters.append(entry)
 
-            entry = tk.Entry(self.top_frame, width=15)
-            entry.grid(row=1, column=i, padx=5, pady=2)
-            self.entry_fields[header] = entry
+        # Botón Restablecer Filtros a la derecha del último entry
+        btn_restablecer_filtros = tk.Button(
+            self.filter_frame, text="Restablecer filtros", command=self.restablecer_filtros,
+            width=15, font=("Arial", 10)
+        )
+        btn_restablecer_filtros.grid(row=1, column=len(headers), padx=5, pady=5, sticky="w")
 
         # Botones debajo de los filtros
         self.button_frame = tk.Frame(self.frame)
         self.button_frame.pack(fill="x", pady=5, padx=10)
 
         btn_guardar = tk.Button(
-            self.button_frame, text="Guardar", command=self.export_to_excel,
+            self.button_frame, text="Guardar", command=self.guardar_excel,
             width=7, height=2, font=("Arial", 10)
         )
         btn_guardar.pack(side="left", padx=10, pady=5)
@@ -115,7 +111,15 @@ class RangosView:
         self.scrollbar.pack(side="right", fill="y")
         self.tree.pack(side="left", fill="both", expand=True)
 
-        #self.tree.bind("<Double-1>", self.start_edit)
+
+
+    def restablecer_filtros(self):
+        if self.controller:
+            self.controller.reset_filters()
+    
+    def guardar_excel(self):
+        if self.controller:
+            self.controller.guardar_excel()
 
     def bind_filter_event(self, filter_function):
         """Vincula el evento de filtro en tiempo real."""
@@ -136,137 +140,23 @@ class RangosView:
         self.frame.pack_forget()
 
         
-    def start_edit(self, event=None):
-        """Iniciar la edición de una celda seleccionada."""
-        item = self.tree.selection()[0]
-        col = self.tree.identify_column(event.x)
-        col_idx = int(col.replace("#", "")) - 1
-        self.selected_row_idx = self.tree.index(item)
-        self.selected_column = col_idx
-        x, y, width, height = self.tree.bbox(item, column=col)
-        value = self.tree.item(item)["values"][col_idx]
-        
-        self.current_entry = tk.Entry(self.tree)
-        self.current_entry.insert(0, value)
-        self.current_entry.place(x=x, y=y, width=width, height=height)
-        self.current_entry.focus()
-        self.current_entry.bind("<Return>", self.save_edit)
-        self.current_entry.bind("<FocusOut>", self.cancel_edit)
-        # Registrar la celda modificada
-        self.modified_cells.add((self.selected_row_idx, self.selected_column))  # Usamos un set para evitar duplicados
+    def start_edit(self, event):
+        if self.controller:
+            self.controller.start_edit(event)
 
     def save_edit(self, event=None):
-        """Guardar la edición de una celda y actualizar 'FECHA DIGITACION' si corresponde."""
-        if not self.current_entry:
-            return
-
-        headers = ["LOCALIDAD", "PUNTO MUESTREO", "ANALISIS", "MINIMO", "MAXIMO"]
-
-        new_value = self.current_entry.get().strip()
-        item = self.tree.selection()[0]
-        col_idx = self.selected_column
-        row_idx = self.selected_row_idx
-        col_name = self.model.headers[col_idx]
-
-        # Guardar el valor editado en el modelo de datos
-        self.model.all_data[row_idx][col_idx] = new_value
-        self.modified_cells.add((row_idx, col_idx))
-
-        # Guardar el nuevo valor en la celda editada
-        current_values = list(self.tree.item(item)["values"])
-        current_values[col_idx] = new_value
-        self.tree.item(item, values=current_values)
-
-        row_index = self.tree.index(item)
-        self.model.all_data[row_index] = current_values
-
-        self.is_data_modified = True
-
-        if self.current_entry:
-            self.current_entry.destroy()
-            self.current_entry = None
+        if self.controller:
+            self.controller.save_edit()
 
     def cancel_edit(self, event=None):
-        """Cancelar la edición y cerrar el Entry."""
-        if self.current_entry:
-            self.current_entry.destroy()
-            self.current_entry = None
+        if self.controller:
+            self.controller.cancel_edit()
 
-    def save_to_file(self):
-            """Guardar los datos modificados en el archivo Excel en la ruta actual."""
-            if not self.current_file_path:
-                self.show_error("Error", "No hay archivo seleccionado.")
-                return
+    def save_edit(self, event=None):
+        if self.controller:
+            self.controller.save_edit()
 
-            try:
-                # Verificar si hay datos modificados
-                if not self.is_data_modified:
-                    self.show_warning("Advertencia", "No hay cambios para guardar.")
-                    return
-
-                # Verificar si hay filas con el valor "default" en alguna de sus celdas
-                invalid_rows = [row for row in self.model.all_data if any("default" in str(cell).lower() for cell in row)]
-                if invalid_rows:
-                    self.show_warning("Advertencia", "No se puede guardar el archivo debido a valores 'default' en los datos.")
-                    return
-
-                # Exportar los datos al archivo base sobrescribiéndolo
-                self.model.export_to_excel(self.model.all_data, self.model.headers, self.current_file_path)
-
-                self.show_message("Éxito", f"Archivo guardado en {self.current_file_path}.")
-
-                # Restablecer la bandera de modificación
-                self.is_data_modified = False
-
-            except Exception as e:
-                self.show_error("Error al guardar archivo", str(e))
-
-
-
-    def export_to_excel(self):
-            """Exportar los datos a un archivo Excel"""
-            file_path = "resources/Rangos.xlsx"
-
-            if file_path:
-                self.export(self.model.all_data, self.headers, file_path)
-                self.show_message("Éxito", f"Datos exportados a {file_path}")
-
-    def export(self, data, headers, file_path):
-            """Exportar los datos a un archivo Excel"""
-
-            #if not self.is_modified:
-            #    print("No se ha realizado ningún cambio, no es necesario guardar.")
-            #    return
-            
-            df = pd.DataFrame(data, columns=headers)
-
-            if "ANÁLISIS" in df.columns:
-                for key, column in self.analysis_columns.items():
-                    df[column] = df["ANÁLISIS"].apply(
-                        lambda x: next(
-                            (val.strip() for val in str(x).split(",") if val.strip().upper() == key), None
-                        )
-                    )
-                df = df.drop(columns=["ANÁLISIS"])
-            
-            if "MINIMO" in df.columns:
-                df["MINIMO"] = pd.to_numeric(df["MINIMO"], errors="coerce")
-
-            if "MAXIMO" in df.columns:
-                df["MAXIMO"] = pd.to_numeric(df["MAXIMO"], errors="coerce")
-
-            df.to_excel(file_path, index=False)
-
-            wb = load_workbook(file_path)
-            ws = wb.active
-
-            for col in ws.columns:
-                max_length = max(len(str(cell.value)) for cell in col if cell.value)
-                column_letter = col[0].column_letter
-                ws.column_dimensions[column_letter].width = max_length + 2
-
-            wb.save(file_path)
-
+   
 
     def show_message(self, title, message):
         """Muestra un mensaje de información."""

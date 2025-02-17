@@ -1,3 +1,5 @@
+import os
+import sys
 import tkinter as tk
 from tkinter import filedialog, messagebox
 from datetime import datetime
@@ -5,7 +7,6 @@ from datetime import datetime
 from openpyxl import load_workbook
 import pandas as pd
 
-from model import DatosExcelModel
 
 class ResultadosExcelController:
     def __init__(self, model, view, volver_a_main_callback):
@@ -29,24 +30,61 @@ class ResultadosExcelController:
         # Asociar el evento de "KeyRelease" a los campos de filtro para activar la actualización automática
         self.view.bind_filter_event(self.filter_data)
 
+
     def cargar_archivo_predeterminado(self):
-        """Método para cargar el archivo predeterminado desde los recursos"""
+        """Carga el archivo predeterminado desde el archivo de directorios."""
         try:
             file_path = self.leer_directorio()  # Obtiene la ruta del archivo desde directorios.txt
-            
-            if not file_path:
-                raise FileNotFoundError("No se encontró una ruta válida en directorios.txt")
+            print(f"Ruta cargada: {file_path}")
+
+            if not file_path or not os.path.exists(file_path):
+                raise FileNotFoundError(f"No se encontró una ruta válida en directorios.txt: {file_path}")
 
             headers, data = self.model.load_file(file_path)
-            
-            # Actualiza la tabla en la vista con los datos y los índices de Excel
             self.view.update_table(headers, data)
-
-
             self.current_file_path = file_path
 
         except Exception as e:
             self.view.show_error("Error al cargar archivo", str(e))
+
+
+    def excel(self):
+        """
+        Abre el archivo ', obtiene las rutas de archivos .xlsx
+        y imprime su contenido.
+        """
+        ruta_archivo = "resources/DirectoriosLocalidades.txt"
+
+        try:
+            with open(ruta_archivo, "r", encoding="utf-8") as f:
+                for linea in f:
+                    if ":" in linea:
+                        localidad, directorio = linea.strip().split(":", 1)
+                        localidad = localidad.strip("() ").strip()
+                        directorio = directorio.rstrip(')')
+
+                        print(f"\n📂 Localidad: {localidad}")
+                        print(f"📁 Ruta del archivo .xlsx: {directorio}")
+
+                        # Verificar si el archivo .xlsx existe
+                        #if not os.path.exists(directorio):
+                        #    print("❌ El archivo no existe.")
+                        #    continue
+
+                        # Intentar leer el contenido del archivo Excel
+                        try:
+                            df = pd.read_excel(directorio)
+                            print("\n📊 Contenido del archivo:")
+                            print(df.head(), "\n")  # Imprime las primeras filas del archivo
+                        except Exception as e:
+                            print(f"⚠️ Error al leer el archivo {directorio}: {e}")
+                    
+        except FileNotFoundError:
+            print("❌ El archivo 'resources/DirectoriosLocalidades.txt' no existe.")
+        except Exception as e:
+            print(f"⚠️ Error al leer el archivo: {e}")
+
+
 
     def select_file(self):
         """Abrir un cuadro de diálogo para seleccionar un archivo."""
@@ -117,33 +155,48 @@ class ResultadosExcelController:
             ruta_archivo: La ruta al archivo donde se va a escribir.
             contenido: El texto que se va a escribir en el archivo.
         """
+        file_path_direct = self.get_path("directorios.txt")
+        print(f"fpd: {file_path_direct}")
 
         try:
-            with open("resources/directorios.txt", 'w') as f:  # Abre el archivo en modo escritura ('w')
+            with open(file_path_direct, 'w') as f:  # Abre el archivo en modo escritura ('w')
                 f.write(file_path + "\n")  # Escribe el contenido
             print(f"Se ha escrito en el archivo")
         except Exception as e:
             print(f"Error al escribir en el archivo: {e}")
-        
+    
+
+    def get_path(self, filename):
+        """Retorna la ruta persistente en 'resources' dentro de AppData."""
+        base_dir = os.path.join(os.environ['APPDATA'], "SuralisLab", "resources")
+        os.makedirs(base_dir, exist_ok=True)
+        return os.path.join(base_dir, filename)
 
     def leer_directorio(self):
-        """Lee la última línea de un archivo de texto.
-
-        Args:
-            nombre_archivo: La ruta al archivo.
-
-        Returns:
-            La última línea del archivo (o None si el archivo está vacío o no existe).
-        """
+        """Lee la última línea de un archivo de texto y muestra todo el contenido en caso de error."""
         try:
-            with open("resources/directorios.txt", 'r') as f:
+            file_path_leer = self.get_path("directorios.txt")
+            print(f"fpl: {file_path_leer}")
+            
+            if not os.path.exists(file_path_leer):
+                return None
+
+            with open(file_path_leer, 'r') as f:
                 lineas = f.readlines()
-                if lineas:
-                    return lineas[-1].strip()  # Elimina el salto de línea final
-                else:
-                    return None  # Archivo vacío
-        except FileNotFoundError:
-            return None  # Archivo no encontrado
+
+            if lineas:
+                return lineas[-1].strip()  # Última línea sin espacios
+            else:
+                # Leer todo el contenido y mostrarlo en el error
+                with open(file_path_leer, 'r') as f:
+                    contenido = f.read()
+                messagebox.showerror("Error", f"Error pa. Contenido del archivo:\n{contenido if contenido else 'El archivo está vacío'}")
+                return None
+
+        except Exception as e:
+            print(f"Errorisimo al leer el archivo de directorio: {e}")
+            return None
+
 
     def vacios(self):
         """Muestra las filas donde las columnas 'FECHA RECEPCION', 'FECHA DIGITACION' y 'RESULTADO' están vacías o contienen NaN."""
@@ -183,20 +236,14 @@ class ResultadosExcelController:
         
 
     def rangos(self):
-        file = "resources/Rangos.xlsx"
+        file = self.get_path("Rangos.xlsx")
         try:
             df = pd.read_excel(file)
             return df
         except Exception as e:
             print(e)
             
-    def unidad(self):
-        file = "resources/Unidades.xlsx"
-        try:
-            df = pd.read_excel(file)
-            return df
-        except Exception as e:
-            print(e)
+
 
 
     def save_edit(self, event=None):
@@ -251,6 +298,8 @@ class ResultadosExcelController:
                 current_values = list(self.view.tree.item(item)["values"])
                 current_values[fecha_digitacion_idx] = fecha_actual
                 self.view.tree.item(item, values=current_values)
+                self.is_data_modified = True
+
 
         # Validaciones para distintos tipos de datos
         if col_name in ["FECHAS MUESTREO", "FECHA RECEPCION", "FECHA DIGITACION"]:
@@ -264,6 +313,8 @@ class ResultadosExcelController:
                         return
                     if col_name != "FECHAS MUESTREO":
                         new_value = fecha.strftime("%d/%m/%Y")
+                        self.is_data_modified = True
+
                 except Exception:
                     self.view.show_error("Error", f"Error al convertir {col_name}")
                     return
@@ -306,7 +357,9 @@ class ResultadosExcelController:
                             respuesta = messagebox.askyesno("Advertencia", f"El valor ingresado ({valor_float}) es mayor al máximo ({maximo}).\n¿Desea guardarlo?")
                             if not respuesta:
                                 return
-                       
+                        
+                        self.is_data_modified = True
+
                 except ValueError:
                     if new_value is not int or float:  # Verifica si el valor no es un número
                                 self.view.show_error("Formato incorrecto", f"Formato incorrecto en: {col_name}.\nModificar valor: {new_value}")                    
