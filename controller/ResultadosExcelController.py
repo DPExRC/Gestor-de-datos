@@ -1,13 +1,25 @@
+from collections import defaultdict
 import os
-import sys
 import tkinter as tk
 from tkinter import filedialog, messagebox
 from datetime import datetime
+import unicodedata
+from unidecode import unidecode  # Importamos unidecode para eliminar tildes
+from openpyxl.utils import get_column_letter, column_index_from_string
+
+
+
 
 from openpyxl import Workbook, load_workbook
+import openpyxl
 from openpyxl.styles import Alignment, Font, Border, Side
+import openpyxl.utils as xlutils
 
 import pandas as pd
+
+from components.get_path_resources import get_path_resources
+from components.show_messages import show_error, show_message, show_warning
+
 
 
 class ResultadosExcelController:
@@ -21,10 +33,13 @@ class ResultadosExcelController:
         self.current_entry = None
         self.selected_row_idx = None
         self.selected_column = None
+
         self.view.set_controller(self)
         self.current_file_path = None
         self.modified_cells = set()
         self.selected_idx = set()
+        self.idx1 = []
+
 
         # Intentar cargar el archivo predeterminado al abrir la vista
         self.cargar_archivo_predeterminado()
@@ -37,7 +52,6 @@ class ResultadosExcelController:
         """Carga el archivo predeterminado desde el archivo de directorios."""
         try:
             file_path = self.leer_directorio()  # Obtiene la ruta del archivo desde directorios.txt
-            print(f"Ruta cargada: {file_path}")
 
             if not file_path or not os.path.exists(file_path):
                 raise FileNotFoundError(f"No se encontró una ruta válida en directorios.txt: {file_path}")
@@ -47,7 +61,7 @@ class ResultadosExcelController:
             self.current_file_path = file_path
 
         except Exception as e:
-            self.view.show_error("Error al cargar archivo", str(e))
+            show_error("Error al cargar archivo", str(e))
 
 
     def select_file(self):
@@ -62,7 +76,7 @@ class ResultadosExcelController:
                 self.view.update_table(headers, data)
                 self.current_file_path = file_path  # Actualiza la ruta del archivo actual
         except Exception as e:
-                self.view.show_error("Error al cargar archivo", str(e))
+                show_error("Error al cargar archivo", str(e))
 
     def load_file(self):
         """Muestra una tabla en Tkinter con solo los encabezados, sin cargar datos de un archivo."""
@@ -77,6 +91,13 @@ class ResultadosExcelController:
         self.selected_row_idx = self.view.tree.index(item)
         self.selected_column = col_idx
 
+            # Lista de índices de columnas que no se pueden editar
+        columnas_bloqueadas = [0, 1, 5]  # Ajusta según sea necesario (ejemplo: columna 0, 1 y 3 bloqueadas)
+
+        if col_idx in columnas_bloqueadas:
+            show_message("Información", f"Edición bloqueada para la columna")
+            return  # No permite la edición
+
         x, y, width, height = self.view.tree.bbox(item, column=col)
         value = self.view.tree.item(item)["values"][col_idx]
         
@@ -90,7 +111,9 @@ class ResultadosExcelController:
         # Registrar la celda modificada
         self.modified_cells.add((self.selected_row_idx, self.selected_column))  # Usamos un set para evitar duplicados
 
-    def generar_archivo_mensual_controller(self):        
+    def generar_archivo_mensual_controller(self):  
+
+        self.model.loading_file()      
         # Llamar a funciones específicas del modelo
         headers, data = self.model.loading_file()
         
@@ -131,11 +154,11 @@ class ResultadosExcelController:
 
                     workbook.save(file_path)
         
-                    self.show_message("Éxito", f"Archivo guardado en: {file_path}")
+                    show_message("Éxito", f"Archivo guardado en: {file_path}")
                     self.guardar_directorio(file_path)
                     return file_path
         else:
-                self.show_error("Error", "No hay datos para generar el archivo.")
+                show_error("Error", "No hay datos para generar el archivo.")
         
         return headers, data
     
@@ -146,28 +169,22 @@ class ResultadosExcelController:
             ruta_archivo: La ruta al archivo donde se va a escribir.
             contenido: El texto que se va a escribir en el archivo.
         """
-        file_path_direct = self.get_path("directorios.txt")
-        print(f"fpd: {file_path_direct}")
+        file_path_direct = get_path_resources("directorios.txt")
 
         try:
             with open(file_path_direct, 'w') as f:  # Abre el archivo en modo escritura ('w')
                 f.write(file_path + "\n")  # Escribe el contenido
             print(f"Se ha escrito en el archivo")
+
         except Exception as e:
             print(f"Error al escribir en el archivo: {e}")
     
 
-    def get_path(self, filename):
-        """Retorna la ruta persistente en 'resources' dentro de AppData."""
-        base_dir = os.path.join(os.environ['APPDATA'], "SuralisLab", "resources")
-        os.makedirs(base_dir, exist_ok=True)
-        return os.path.join(base_dir, filename)
-
     def leer_directorio(self):
         """Lee la última línea de un archivo de texto y muestra todo el contenido en caso de error."""
         try:
-            file_path_leer = self.get_path("directorios.txt")
-            print(f"fpl: {file_path_leer}")
+            file_path_leer = get_path_resources("directorios.txt")
+            
             
             if not os.path.exists(file_path_leer):
                 return None
@@ -181,53 +198,58 @@ class ResultadosExcelController:
                 # Leer todo el contenido y mostrarlo en el error
                 with open(file_path_leer, 'r') as f:
                     contenido = f.read()
-                messagebox.showerror("Error", f"Error pa. Contenido del archivo:\n{contenido if contenido else 'El archivo está vacío'}")
+                messagebox.showerror("Error", f"Error. Contenido del archivo:\n{contenido if contenido else 'El archivo está vacío'}")
                 return None
 
         except Exception as e:
-            print(f"Errorisimo al leer el archivo de directorio: {e}")
+            print(f"Error al leer el archivo de directorio: {e}")
             return None
 
 
     def vacios(self):
-        """Muestra las filas donde las columnas 'FECHA RECEPCION', 'FECHA DIGITACION' y 'RESULTADO' están vacías o contienen NaN."""
+        """Muestra las filas donde las columnas 'FECHA RECEPCION', 'FECHA DIGITACION' y 'RESULTADO' están vacías o contienen NaN, según el estado del checkbox."""
 
-        vacias = []
-        headers = self.model.headers
+        # Verificar si el checkbox está marcado
+        if self.view.select_all_var_vacios.get() == 1:  # Si está activado
+            vacias = []
+            headers = self.model.headers
 
-        # Asegurarse de que las columnas requeridas existan
-        try:
-            fecha_recepcion_idx = headers.index("FECHA RECEPCION")
-            fecha_digitacion_idx = headers.index("FECHA DIGITACION")
-            resultado_idx = headers.index("RESULTADO")
-        except ValueError:
-            self.view.show_error("Error", "Las columnas 'FECHA RECEPCION', 'FECHA DIGITACION' o 'RESULTADO' no se encuentran en los datos.")
-            return
+            # Asegurarse de que las columnas requeridas existan
+            try:
+                fecha_recepcion_idx = headers.index("FECHA RECEPCION")
+                fecha_digitacion_idx = headers.index("FECHA DIGITACION")
+                resultado_idx = headers.index("RESULTADO")
+            except ValueError:
+                show_error("Error", "Las columnas 'FECHA RECEPCION', 'FECHA DIGITACION' o 'RESULTADO' no se encuentran en los datos.")
+                return
 
-        # Recorrer las filas y verificar si están vacías o contienen NaN
-        for idx, row in enumerate(self.model.all_data):
-            # Verificar si las celdas de las columnas específicas están vacías o contienen NaN
-            fecha_recepcion_vacia = pd.isna(row[fecha_recepcion_idx]) or (isinstance(row[fecha_recepcion_idx], str) and row[fecha_recepcion_idx].strip() == "")
-            fecha_digitacion_vacia = pd.isna(row[fecha_digitacion_idx]) or (isinstance(row[fecha_digitacion_idx], str) and row[fecha_digitacion_idx].strip() == "")
-            
-            # Para 'RESULTADO', verificamos si el valor es None, NaN o está vacío
-            resultado_vacio = pd.isna(row[resultado_idx]) or (isinstance(row[resultado_idx], str) and row[resultado_idx].strip() == "") or (isinstance(row[resultado_idx], float) and row[resultado_idx] != row[resultado_idx])  # NaN check
+            # Recorrer las filas y verificar si están vacías o contienen NaN
+            for idx, row in enumerate(self.model.all_data):
+                # Verificar si las celdas de las columnas específicas están vacías o contienen NaN
+                fecha_recepcion_vacia = pd.isna(row[fecha_recepcion_idx]) or (isinstance(row[fecha_recepcion_idx], str) and row[fecha_recepcion_idx].strip() == "")
+                fecha_digitacion_vacia = pd.isna(row[fecha_digitacion_idx]) or (isinstance(row[fecha_digitacion_idx], str) and row[fecha_digitacion_idx].strip() == "")
+                
+                # Para 'RESULTADO', verificamos si el valor es None, NaN o está vacío
+                resultado_vacio = pd.isna(row[resultado_idx]) or (isinstance(row[resultado_idx], str) and row[resultado_idx].strip() == "") or (isinstance(row[resultado_idx], float) and row[resultado_idx] != row[resultado_idx])  # NaN check
 
-            # Si las tres columnas están vacías o contienen NaN, agregar la fila a la lista de vacías
-            if fecha_recepcion_vacia and fecha_digitacion_vacia and resultado_vacio:
-                vacias.append(self.model.all_data[idx])
+                # Si las tres columnas están vacías o contienen NaN, agregar la fila a la lista de vacías
+                if fecha_recepcion_vacia and fecha_digitacion_vacia and resultado_vacio:
+                    vacias.append(self.model.all_data[idx])
 
-        # Si hay filas vacías, mostrarlas en la vista
-        if vacias:
-            self.view.update_table(self.model.headers, vacias)  # Actualiza la tabla con las filas vacías
-            self.view.show_message("Filas vacías encontradas", f"Se han encontrado {len(vacias)} filas con fechas y resultados vacíos.")
+            # Si hay filas vacías, mostrarlas en la vista
+            if vacias:
+                self.view.update_table(self.model.headers, vacias)  # Actualiza la tabla con las filas vacías
+                show_message("Filas vacías encontradas", f"Se han encontrado {len(vacias)} filas con fechas y resultados vacíos.")
+            else:
+                show_message("No hay filas vacías", "No se encontraron filas con fechas o resultados vacíos.")
         else:
-            self.view.show_message("No hay filas vacías", "No se encontraron filas con fechas o resultados vacíos.")
+            # Si el checkbox está desmarcado, eliminar las filas vacías de la vista (si es necesario)
+            self.view.update_table(self.model.headers, self.model.all_data)  # Actualiza la tabla con todas las filas
+            show_message("Todas las filas visibles", "Se muestran todas las filas.")
 
-        
-
+    
     def rangos(self):
-        file = self.get_path("Rangos.xlsx")
+        file = get_path_resources("Rangos.xlsx")
         try:
             df = pd.read_excel(file)
             return df
@@ -236,13 +258,13 @@ class ResultadosExcelController:
             
 
 
-
     def save_edit(self, event=None):
         """Guardar la edición de una celda y actualizar 'FECHA DIGITACION' si corresponde."""
         if not self.current_entry:
             return
 
-        headers = ["PLANTA", "PUNTO MUESTREO", "FECHAS MUESTREO", "FECHA RECEPCION", "FECHA DIGITACION", "ANALISIS", "RESULTADO", "UNIDAD"]
+
+        headers = ["LOCALIDAD", "MUESTRA", "FECHA MUESTRA", "FECHA RECEPCION", "FECHA DIGITACION", "ANALISIS", "RESULTADO", "UNIDAD"]
         new_value = self.current_entry.get().strip()
         item = self.view.tree.selection()[0]
         col_idx = self.selected_column
@@ -257,7 +279,7 @@ class ResultadosExcelController:
 
         # Obtener la fila original de la tabla
         current_values = list(self.view.tree.item(item)["values"])
-        print(f"Fila en excel base: {current_values}")
+
         
         selected_values = self.view.tree.item(item)["values"]
         for idx, row in enumerate(self.model.all_data):
@@ -266,9 +288,13 @@ class ResultadosExcelController:
                 (value == selected_value or (pd.isna(value) and pd.isna(selected_value)))
                 for value, selected_value in zip(row, selected_values)
             ):
+                ## indice
                 self.selected_idx = idx
-                print(f"Fila repetida encontrada en el índice de all_data: {idx}\nFila en excel: {idx+2}")
-                print(f"tree: {selected_values}\nall_data: {row}")
+                self.idx1.append(idx)
+        ##print("Índices únicos:", self.print_idx1())
+        #print("Índices seleccionados:", self.idx1)  # Imprimir la lista completa
+
+
 
         # Asegurar que la cantidad de valores en la fila coincida con los headers
         if len(current_values) > len(self.model.headers):
@@ -279,35 +305,44 @@ class ResultadosExcelController:
         self.view.tree.item(item, values=current_values)
 
         # Buscar índices de columnas
-        if "RESULTADO"  and "FECHA DIGITACION" in self.model.headers:
+        if "RESULTADO" in self.model.headers and "FECHA DIGITACION" in self.model.headers:
             resultados_idx = self.model.headers.index("RESULTADO")
             fecha_digitacion_idx = self.model.headers.index("FECHA DIGITACION")
 
             # Si se edita "RESULTADO", actualizar "FECHA DIGITACION"
             if col_idx == resultados_idx:
-                fecha_actual = datetime.now().strftime("%d/%m/%Y")  # Fecha en formato corto
                 current_values = list(self.view.tree.item(item)["values"])
-                current_values[fecha_digitacion_idx] = fecha_actual
+                resultado_value = current_values[resultados_idx]
+
+                # Si "RESULTADO" está vacío, vaciar "FECHA DIGITACION", si no, actualizar con la fecha actual
+                if not resultado_value:
+                    current_values[fecha_digitacion_idx] = ""
+                else:
+                    fecha_actual = datetime.now().strftime("%d/%m/%Y")  # Fecha en formato corto
+                    current_values[fecha_digitacion_idx] = fecha_actual
+
+                # Actualizar el valor de la fila
                 self.view.tree.item(item, values=current_values)
                 self.is_data_modified = True
 
 
+
         # Validaciones para distintos tipos de datos
-        if col_name in ["FECHAS MUESTREO", "FECHA RECEPCION", "FECHA DIGITACION"]:
+        if col_name in ["FECHA MUESTRA", "FECHA RECEPCION", "FECHA DIGITACION"]:
             if new_value:  # Si hay un valor, validar formato de fecha
                 try:
-                    formato = "%d/%m/%Y" if col_name == "FECHAS MUESTREO" else "%d/%m/%Y"
+                    formato = "%d/%m/%Y" if col_name == "FECHA MUESTRA" else "%d/%m/%Y"
                     fecha = pd.to_datetime(new_value, format=formato, errors="coerce")
 
                     if pd.isna(fecha):
-                        self.view.show_warning("Advertencia", f"Formato incorrecto en {col_name} (debe ser {formato.replace('%H:%M', 'HH:MM')})")
+                        show_warning("Advertencia", f"Formato incorrecto en {col_name} (debe ser {formato.replace('%H:%M', 'HH:MM')})")
                         return
-                    if col_name != "FECHAS MUESTREO":
+                    if col_name != "FECHA MUESTRA":
                         new_value = fecha.strftime("%d/%m/%Y")
                         self.is_data_modified = True
 
                 except Exception:
-                    self.view.show_error("Error", f"Error al convertir {col_name}")
+                    show_error("Error", f"Error al convertir {col_name}")
                     return
             else:
                 respuesta = messagebox.askyesno(
@@ -318,21 +353,24 @@ class ResultadosExcelController:
 
         elif col_name == "RESULTADO":  # Validación de rangos
             if new_value:
+
                 try:
+
                     valor_float = float(new_value)
                     if valor_float.is_integer():
                         new_value = int(valor_float)
                     else:
                         new_value = round(valor_float, 6)
 
+
                     # Verificación de rangos
-                    localidad = self.view.tree.item(item)["values"][headers.index("PLANTA")]
-                    punto_muestreo = self.view.tree.item(item)["values"][headers.index("PUNTO MUESTREO")]
+                    localidad = self.view.tree.item(item)["values"][headers.index("LOCALIDAD")]
+                    punto_muestreo = self.view.tree.item(item)["values"][headers.index("MUESTRA")]
                     analisis = self.view.tree.item(item)["values"][headers.index("ANALISIS")]
 
                     df_rangos = self.rangos()
                     fila_rango = df_rangos[(df_rangos["LOCALIDAD"] == localidad) &
-                                        (df_rangos["PUNTO MUESTREO"] == punto_muestreo) &
+                                        (df_rangos["MUESTRA"] == punto_muestreo) &
                                         (df_rangos["ANALISIS"] == analisis)]
 
                     if not fila_rango.empty:
@@ -340,6 +378,7 @@ class ResultadosExcelController:
                         maximo = fila_rango.iloc[0]["MAXIMO"]
 
                         if pd.notna(minimo) and valor_float < minimo:
+                            print(valor_float)
                             respuesta = messagebox.askyesno("Advertencia", f"El valor ingresado ({valor_float}) es menor al mínimo ({minimo}).\n¿Desea guardarlo?")
                             if not respuesta:
                                 return
@@ -351,22 +390,21 @@ class ResultadosExcelController:
                         
                         self.is_data_modified = True
 
-                except ValueError:
-                    if new_value is not int or float:  # Verifica si el valor no es un número
-                                self.view.show_error("Formato incorrecto", f"Formato incorrecto en: {col_name}.\nModificar valor: {new_value}")                    
-                                return
-            else:
-                respuesta = messagebox.askyesno(
-                    "Confirmación", f"La celda en fila {row_idx + 1}, columna {col_name} está vacía.\n¿Desea guardarla así?"
-                )
-                if not respuesta:
+                except Exception as e:
+                    show_error("Error inesperado", f"{type(e).__name__}: {e}")
                     return
 
+                except ValueError:
+                    if not isinstance(new_value, (int, float)):  
+                                show_error("Formato incorrecto", f"Formato incorrecto en: {col_name}.\nModificar valor: {new_value} DE TIPO : {type(new_value)}")                    
+                                return
     
         self.modified_cells.add((row_idx, col_idx))
 
         # Guardar el nuevo valor en la celda editada
         current_values = list(self.view.tree.item(item)["values"])
+        ###data
+
         current_values[col_idx] = new_value
         self.view.tree.item(item, values=current_values)
 
@@ -377,7 +415,7 @@ class ResultadosExcelController:
         #print("-------------------------------DATOS-------------------------------")
 
         self.model.all_data[self.selected_idx] = current_values
-        print(self.selected_idx)
+        #print(self.selected_idx)
         #print(self.model.all_data[idx])
 
         self.is_data_modified = True
@@ -437,43 +475,73 @@ class ResultadosExcelController:
 
             # Guardar el archivo
             workbook.save(file_path)
-            self.view.show_message("Éxito", f"Datos exportados a {file_path}")
+            show_message("Éxito", f"Datos exportados a {file_path}")
 
     def save_to_file(self):
         """Guardar los datos modificados en el archivo Excel en la ruta actual."""
         if not self.current_file_path:
-            self.view.show_error("Error", "No hay archivo seleccionado.")
+            show_error("Error", "No hay archivo seleccionado.")
             return
 
-
         try:
+            
+            datos_procesados, unique_indices = self.print_idx1()  # Recibir ambos valores
+            print("Datos Procesados:", datos_procesados)  # Mostrar datos
+            print("Índices Únicos:", unique_indices)  # Mostrar índices únicos
+    
             # Verificar si hay datos modificados
             if not self.is_data_modified:
-                self.view.show_warning("Advertencia", "No hay cambios para guardar.")
+                show_warning("Advertencia", "No hay cambios para guardar.")
                 return
 
-            # Verificar si hay filas con el valor "default" en alguna de sus celdas
+            # Verificar si hay filas con el valor "default" o valores no deseados
             invalid_rows = [row for row in self.model.all_data if any("default" in str(cell).lower() for cell in row)]
             if invalid_rows:
-                self.view.show_warning("Advertencia", "No se puede guardar el archivo debido a valores 'default' en los datos.")
+                show_warning("Advertencia", "No se puede guardar el archivo debido a valores 'default' en los datos.")
                 return
 
-            # Crear un DataFrame con los datos actuales
-            df = pd.DataFrame(self.model.all_data, columns=self.model.headers)
+            # Crear un libro de trabajo y una hoja de trabajo con openpyxl
+            wb = Workbook()
+            sheet = wb.active
+            sheet.title = "Datos"
 
-            # Guardar el DataFrame actualizado en el archivo
-            df.to_excel(self.current_file_path, index=False) 
+            # Agregar encabezados
+            for col_num, header in enumerate(self.model.headers, start=1):
+                cell = sheet.cell(row=1, column=col_num, value=header)
+                cell.font = Font(bold=True)
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+
+            # Agregar datos
+            for row_num, row_data in enumerate(self.model.all_data, start=2):
+                for col_num, value in enumerate(row_data, start=1):
+                    cell = sheet.cell(row=row_num, column=col_num, value=value)
+                    cell.alignment = Alignment(horizontal='center', vertical='center')
+
+            # Ajustar ancho de columnas
+            for col in sheet.columns:
+                max_length = 10
+                col_letter = col[0].column_letter
+                for cell in col:
+                    if cell.value:
+                        max_length = max(max_length, len(str(cell.value)))
+                sheet.column_dimensions[col_letter].width = max_length + 2
+
+            # Guardar el libro de trabajo en la ruta seleccionada
+            wb.save(self.current_file_path)
 
             # Restablecer las celdas modificadas
             self.modified_cells.clear()
 
-            self.view.show_message("Éxito", f"Archivo guardado en {self.current_file_path}.")
+            show_message("Éxito", f"Archivo guardado en {self.current_file_path}.")
 
             # Restablecer la bandera de modificación
             self.is_data_modified = False
 
+            # Resetear la lista después de guardar
+            self.idx1.clear()
+
         except Exception as e:
-            self.view.show_error("Error al guardar archivo", str(e))
+            show_error("Error al guardar archivo", str(e))
 
 
 
@@ -597,8 +665,9 @@ class ResultadosExcelController:
                             (value == selected_value or (pd.isna(value) and pd.isna(selected_value)))
                             for value, selected_value in zip(row, selected_values)
                         ):
-                            print(f"Fila repetida encontrada en el índice {idx}:")
-                            print(f"tree: {selected_values}\nall_data: {row}")
+                            print("")
+                            ##print(f"Fila repetida encontrada en el índice {idx}:")
+                            ##print(f"tree: {selected_values}\nall_data: {row}")
 
                 # Buscar la fila seleccionada en el DataFrame
                 resultado = self.model.df[(self.model.df == list(self.view.tree.item(selected_item)["values"])).all(axis=1)]
@@ -613,7 +682,7 @@ class ResultadosExcelController:
                 if idx < len(self.model.all_data):
                     row_dataframe = self.model.all_data[idx]  # Obtener la fila original
 
-                    print(f"Datos seleccionados para eliminar: {row_dataframe}")
+                    #print(f"Datos seleccionados para eliminar: {row_dataframe}")
                     # Eliminar la fila del modelo y del TreeView
                     del self.model.all_data[idx]
                     #del self.model.original_indices[idx]
@@ -646,7 +715,6 @@ class ResultadosExcelController:
             # Obtiene la ruta del archivo desde directorios.txt
             file_path = self.leer_directorio()  
             # Imprimir la ruta del archivo base que se utilizará para eliminar filas
-            print(f"Archivo base para eliminar filas: {file_path}")
 
             # Cargar el libro de Excel usando openpyxl
             wb = load_workbook(file_path)
@@ -667,15 +735,232 @@ class ResultadosExcelController:
     def volver_a_main(self):
         """Método para volver a la vista principal."""
         self.volver_a_main_callback()
-            
-    def show_message(self, title, message):
-        """Muestra un mensaje de información."""
-        messagebox.showinfo(title, message)
 
-    def show_error(self, title, message):
-        """Muestra un mensaje de error."""
-        messagebox.showerror(title, message)
+    def normalizar_claves(self):
+    # Leer el archivo Excel
 
-    def show_warning(self, title, message):
-        """Muestra un mensaje de advertencia."""
-        messagebox.showwarning(title, message)
+        ruta = get_path_resources("Libro2.xlsx")
+
+        df = pd.read_excel(ruta, usecols=["MUESTRA"])
+
+        # Normalizar las tildes y eliminar duplicados
+        def normalizar_texto(texto):
+            return ''.join(c for c in unicodedata.normalize('NFD', str(texto).upper()) if unicodedata.category(c) != 'Mn')
+
+        muestras_unicas = set(df["MUESTRA"].dropna().apply(normalizar_texto))
+
+        #print(muestras_unicas)  # Muestra el conjunto sin duplicados y sin tildes
+
+        return muestras_unicas  # Devuelve los valores si es necesario
+
+
+    def actualizar_excel(self):
+        """Carga las localidades con sus archivos si existen y busca coincidencias exactas en la fila 2."""
+        ruta_guardado = get_path_resources("DirectoriosLocalidades.txt")
+
+        # Obtener palabras clave desde normalizar_claves
+        palabras_clave = self.normalizar_claves()
+
+        try:
+            with open(ruta_guardado, "r", encoding="utf-8") as file:
+                for linea in file:
+                    partes = linea.strip().split(": ", 1)
+                    if len(partes) == 2:
+                        localidad, ruta = partes
+                        if ruta != "Sin asignar" and os.path.exists(ruta) and ruta.endswith(".xlsx"):  
+                            print(f"Leyendo archivo para Localidad: {localidad}, Ruta: {ruta}")
+                            try:
+                                wb = openpyxl.load_workbook(ruta)
+                                sheet = wb.active  # Seleccionar la hoja activa
+
+                                # Buscar coincidencias exactas en la fila 2
+                                columnas_encontradas = []
+                                for col in range(1, sheet.max_column + 1):  # Recorrer columnas
+                                    valor = sheet.cell(row=2, column=col).value  # Obtener valor en fila 2
+                                    if valor and str(valor).strip() in palabras_clave:  # Comparación exacta
+                                        letra_columna = xlutils.get_column_letter(col)  # Obtener letra de columna
+                                        columnas_encontradas.append((letra_columna, valor))  # Guardar letra de columna y nombre
+
+                                # Mostrar resultados
+                                if columnas_encontradas:
+                                    print(f"Palabras clave encontradas en {ruta}:")
+                                    for letra, valor in columnas_encontradas:
+                                        print(f"Columna {letra}: {valor}")
+                                else:
+                                    print(f"No se encontraron coincidencias exactas en {ruta}.")
+
+                            except Exception as e:
+                                show_error(f"Error al leer {ruta}", str(e))
+        except Exception as e:
+            show_error("Error", str(e))
+
+
+
+
+    def obtener_ruta_localidad(self, localidad):
+        """Lee el archivo DirectoriosLocalidades.txt y devuelve la ruta de la localidad especificada."""
+        ruta_txt = get_path_resources("DirectoriosLocalidades.txt")
+
+        if not os.path.exists(ruta_txt):
+            print("Error: No se encontró el archivo DirectoriosLocalidades.txt")
+            return None
+
+        with open(ruta_txt, "r", encoding="utf-8") as file:
+            for line in file:
+                partes = line.strip().split(":",1)  # Suponiendo que los datos están separados por ";"
+
+                if len(partes) == 2 and partes[0].strip() == localidad:
+                    return partes[1].strip()  # Retorna la ruta del archivo de la localidad
+        
+        print(f"Error: No se encontró la ruta para la localidad '{localidad}' en DirectoriosLocalidades.txt")
+        return None
+
+    def print_idx1(self):
+        seen = set()
+        unique_indices = []
+        resultados = defaultdict(list)  # Diccionario para agrupar por localidad, muestra y análisis
+
+        # Cargar Rangos.xlsx
+        ruta_rangos = get_path_resources("Rangos.xlsx")
+        if not os.path.exists(ruta_rangos):
+            print("Error: No se encontró el archivo Rangos.xlsx")
+            return
+        
+        df_rangos = pd.read_excel(ruta_rangos)
+
+        # Convertir a diccionario para búsqueda rápida
+        ubicaciones_dict = {(row["LOCALIDAD"].strip(), row["MUESTRA"].strip(), row["ANALISIS"].strip()): 
+                            row["UBICACION"] for _, row in df_rangos.iterrows()}
+        
+
+        for idx in self.idx1:
+            if idx not in seen:
+                seen.add(idx)
+                unique_indices.append(idx)
+
+
+        for idx in unique_indices:
+            dato = self.model.all_data[idx]
+            localidad = dato[0].strip()
+            muestra = dato[1].strip()
+            analisis = dato[5].strip()
+            resultado = dato[6]
+            valor_busqueda = dato[2].strip()  # Se usa la primera columna para buscar la fila
+
+            # Buscar la ubicación en Rangos.xlsx
+            key = (localidad, muestra, analisis)
+            ubicacion = ubicaciones_dict.get(key, None)
+
+            if not ubicacion:
+                print(f"Advertencia: No se encontró la ubicación para {localidad} - {muestra} - {analisis}")
+                continue
+
+            # Obtener la ruta del archivo de la localidad
+            ruta_localidad = self.obtener_ruta_localidad(localidad)
+            if not ruta_localidad or not os.path.exists(ruta_localidad):
+                print(f"Error: No se encontró el archivo en la ruta {ruta_localidad}")
+                continue
+
+            try:
+                # Cargar el archivo Excel de la localidad
+                wb = load_workbook(ruta_localidad)
+                ws = wb.active
+
+                # Buscar la fila donde la primera columna coincide con valor_busqueda
+                fila_coincidente = None
+                for row in range(5, ws.max_row + 1):
+                    celda_valor = ws.cell(row=row, column=1).value  # Primera columna (A)
+
+                    # Convertir fechas a string si es necesario
+                    if isinstance(celda_valor, datetime):
+                        celda_valor = celda_valor.strftime("%d/%m/%Y")
+
+                    print(f"Fila {row}: {celda_valor} (Tipo: {type(celda_valor)})")
+                    if celda_valor and str(celda_valor).strip() == valor_busqueda:
+                        fila_coincidente = row
+                        break
+
+                if not fila_coincidente:
+                    print(f"Advertencia: No se encontró '{valor_busqueda}' en la primera columna de {ruta_localidad}")
+                    continue
+
+                # Convertir la columna 'ubicacion' a índice numérico
+                col_ubicacion = column_index_from_string(ubicacion)
+
+                # Insertar el resultado en la fila encontrada y la columna de ubicación
+                ws.cell(row=fila_coincidente, column=col_ubicacion, value=resultado)
+
+                # Guardar los cambios en el archivo
+                wb.save(ruta_localidad)
+                print(f"✔ Resultado '{resultado}' insertado en '{ubicacion}' (Fila {fila_coincidente}) para {localidad} - {muestra} - {analisis}")
+
+            except Exception as e:
+                print(f"Error al actualizar el archivo {ruta_localidad}: {e}")
+
+        return resultados, unique_indices  # Retorna los datos agrupados
+
+
+
+    def actualizar_excel2(self):
+        """
+        Lee las rutas de DirectoriosLocalidades.txt, busca dato[1] en la fila 2, y luego busca dato[5] en la fila siguiente dentro de la misma columna y columnas hacia la derecha.
+        """
+        ruta_guardado = get_path_resources("DirectoriosLocalidades.txt")
+        resultados = {}
+
+        try:
+            with open(ruta_guardado, "r", encoding="utf-8") as file:
+                for linea in file:
+                    partes = linea.strip().split(": ", 1)
+                    if len(partes) == 2:
+                        localidad, ruta = partes
+                        if ruta != "Sin asignar" and os.path.exists(ruta) and ruta.endswith(".xlsx"):  
+                            print(f"Leyendo archivo para Localidad: {localidad}, Ruta: {ruta}")
+                            try:
+                                wb = openpyxl.load_workbook(ruta)
+                                sheet = wb.active  # Seleccionar la hoja activa
+
+                                # Obtener los resultados de print_idx1
+                                resultados_idx1 = self.print_idx1()
+                                print(resultados_idx1)
+
+                                # Iterar sobre los datos ya procesados en print_idx1
+                                for dato in resultados_idx1:
+                                    palabra_clave = str(dato[0][1]).strip().upper()  # Convertir dato[1] a mayúsculas
+                                    print(palabra_clave)
+                                    referencia = str(dato[0][3]).strip()  # Valor a buscar en la fila siguiente (dato[5] en tu lista)
+                                    print(referencia)
+                                    col_encontrada = None
+
+                                    # Paso 1: Buscar la palabra clave (dato[1]) en la fila 2
+                                    for col in range(1, sheet.max_column + 1):
+                                        celda = sheet.cell(row=2, column=col).value
+                                        if celda and str(celda).strip().upper() == palabra_clave:
+                                            col_encontrada = col
+                                            break  # Se encontró la columna, salimos del bucle
+
+                                    if col_encontrada:
+                                        # Paso 2: Bajar una fila (fila 3) y buscar dato[5] en las columnas a la derecha de la columna encontrada
+                                        encontrado = False
+                                        for fila in range(3, sheet.max_row + 1):  # Comenzamos desde la fila 3
+                                            for col in range(col_encontrada, sheet.max_column + 1):  # Buscar en la columna encontrada y hacia la derecha
+                                                celda_actual = sheet.cell(row=fila, column=col).value
+                                                if celda_actual and str(celda_actual).strip() == referencia:
+                                                    # Guardamos la fila y columna en la que se encontró
+                                                    resultados[localidad] = (fila, col)
+                                                    encontrado = True
+                                                    break
+                                            if encontrado:
+                                                break
+                                        if not encontrado:
+                                            resultados[localidad] = -1  # Si no encuentra dato[5], almacena -1
+                                    else:
+                                        resultados[localidad] = -1  # Si no encuentra dato[1], almacena -1
+
+                            except Exception as e:
+                                show_error(f"Error al leer {ruta}", str(e))
+                                resultados[localidad] = -1
+        except Exception as e:
+            show_error("Error", str(e))
+
+        return resultados  # Devuelve el diccionario con los resultados

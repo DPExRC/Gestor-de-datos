@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
-from tkinter import messagebox
+
 
 class VectorCargaView:
     def __init__(self, root, volver_a_main_callback):
@@ -49,7 +49,7 @@ class VectorCargaView:
 
 
         # Encabezados de columnas para los filtros
-        headers = ["LOCALIDAD", "PROGRAMA", "DIAS DE MUESTREO", "PUNTO MUESTREO", "ANALISIS"]
+        headers = ["LOCALIDAD", "PROGRAMA", "DIAS DE MUESTRA", "MUESTRA", "ANALISIS"]
 
         self.filters = []
 
@@ -114,6 +114,7 @@ class VectorCargaView:
 
 
     def update_table(self, headers, data):
+
         """Actualiza la tabla con datos proporcionados."""
         self.tree.delete(*self.tree.get_children())
         self.tree["columns"] = list(range(len(headers)))
@@ -123,18 +124,6 @@ class VectorCargaView:
 
         for row in data:
             self.tree.insert("", "end", values=row)
-
-    def show_message(self, title, message):
-        """Muestra un mensaje de información."""
-        messagebox.showinfo(title, message)
-
-    def show_error(self, title, message):
-        """Muestra un mensaje de error."""
-        messagebox.showerror(title, message)
-
-    def show_warning(self, title, message):
-        """Muestra un mensaje de advertencia."""
-        messagebox.showwarning(title, message)
 
     def show(self):
         """Muestra esta vista."""

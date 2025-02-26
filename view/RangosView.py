@@ -64,7 +64,7 @@ class RangosView:
         self.filter_frame = tk.Frame(self.filter_container)
         self.filter_frame.pack(fill="x", pady=0)
 
-        headers = ["LOCALIDAD", "PUNTO MUESTREO", "ANALISIS", "MINIMO", "MAXIMO","UBICACION"]
+        headers = ["LOCALIDAD", "MUESTRA", "ANALISIS", "MINIMO", "MAXIMO","UBICACION"]
         self.filters = []
 
         for col, header in enumerate(headers):
@@ -90,6 +90,19 @@ class RangosView:
         )
         btn_guardar.pack(side="left", padx=10, pady=5)
 
+        btn_actualizar = tk.Button(
+            self.button_frame, text="Actualizar", command=self.actualizar_datos,
+            width=7, height=2, font=("Arial", 10)
+        )
+        btn_actualizar.pack(side="left", padx=10, pady=5)
+
+        btn_ubicaciones = tk.Button(
+            self.button_frame, text="Generar UBICACIONES", command=self.ubicaciones,
+            width=7, height=2, font=("Arial", 10)
+        )
+        btn_ubicaciones.pack(side="left", padx=10, pady=5)
+
+
         btn_volver = tk.Button(
             self.button_frame, text="Volver", command=self.volver_a_limites,
             width=7, height=2, font=("Arial", 10)
@@ -112,11 +125,18 @@ class RangosView:
         self.tree.pack(side="left", fill="both", expand=True)
 
 
+    def ubicaciones(self):
+        print("Hola1")
+        if self.controller:
+            self.controller.ubicaciones()
 
     def restablecer_filtros(self):
         if self.controller:
             self.controller.reset_filters()
-    
+
+    def actualizar_datos(self):
+        self.controller.actualizar_datos()
+
     def guardar_excel(self):
         if self.controller:
             self.controller.guardar_excel()

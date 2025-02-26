@@ -37,7 +37,7 @@ class ResultadosExcelView:
             ("Seleccionar archivo", self.select_file),
             ("Generar archivo mensual", self.generar_archivo_mensual),
             ("Guardar archivo", self.save_to_file),
-            #("Exportar a Excel", self.export_to_excel),
+            ("Actualizar Excel", self.actualizar_excel),
             ("Volver", self.volver_a_main_callback),
         ]
 
@@ -56,7 +56,7 @@ class ResultadosExcelView:
 
         # Etiquetas de encabezado y entradas
         headers = [
-            "LOCALIDAD", "PUNTO\nMUESTREO", "FECHA\nMUESTREO", "FECHA\nRECEPCION",
+            "LOCALIDAD", "MUESTRA", "FECHA\nMUESTRA", "FECHA\nRECEPCION",
             "FECHA\nDIGITACION", "ANALISIS", "RESULTADO", "UNIDAD"
         ]
 
@@ -87,8 +87,8 @@ class ResultadosExcelView:
             #("Restablecer filtros", self.reset_filters),
             #("Añadir fila", self.add_row),
             ("Exportar", self.export_to_excel),
-            ("Eliminar fila", self.delete_row),
-            ("Vacios", self.vacios),
+            #("Eliminar fila", self.delete_row),
+            #("Vacios", self.vacios),
         ]
 
         # Generar los botones
@@ -96,10 +96,15 @@ class ResultadosExcelView:
             btn = tk.Button(self.button_frame, text=text, command=command, width=WithBoton, font=font)
             btn.grid(row=0, column=i, padx=5)  # Los botones ocupan las primeras columnas
 
+        self.select_all_var_vacios = tk.IntVar()  # Para el checkbox
+        self.select_all_checkbox = tk.Checkbutton(self.button_frame, text="Vacíos", variable=self.select_all_var_vacios, command=self.vacios, font=font)
+        self.select_all_checkbox.grid(row=0, column=len(acciones), padx=5)  # El checkbox se coloca justo después de "Vacios"
+
+
         # Checkbox para seleccionar todas las filas visibles
         self.select_all_var = tk.IntVar()  # Para el checkbox
         self.select_all_checkbox = tk.Checkbutton(self.button_frame, text="Seleccionar todo", variable=self.select_all_var, command=self.select_all_rows, font=font)
-        self.select_all_checkbox.grid(row=0, column=len(acciones), padx=5)  # El checkbox se coloca justo después de "Vacios"
+        self.select_all_checkbox.grid(row=0, column=len(acciones)+1, padx=5)  # El checkbox se coloca justo después de "Vacios"
 
 
         # Crear un marco para contener la tabla y la barra de desplazamiento
@@ -183,17 +188,6 @@ class ResultadosExcelView:
 
    
     
-    def show_message(self, title, message):
-        """Muestra un mensaje de información."""
-        messagebox.showinfo(title, message)
-
-    def show_error(self, title, message):
-        """Muestra un mensaje de error."""
-        messagebox.showerror(title, message)
-
-    def show_warning(self, title, message):
-        """Muestra un mensaje de advertencia."""
-        messagebox.showwarning(title, message)
 
     def show(self):
         """Muestra esta vista."""
@@ -211,6 +205,11 @@ class ResultadosExcelView:
     def vacios(self):
         if self.controller:
             self.controller.vacios()
+
+    def actualizar_excel(self):
+        if self.controller:
+            self.controller.print_idx1()
+            #self.controller.actualizar_excel()
 
     def generar_archivo_mensual(self):
         """Genera el archivo mensual con el nombre del mes y año actual y permite al usuario guardar en una ubicación."""

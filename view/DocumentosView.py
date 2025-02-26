@@ -75,7 +75,7 @@ class DocumentosView:
         self.boton_muestra = tk.Button(
             self.frame, 
             text="    ETIQUETA\n    MUESTRA",  # Agrega espacios para alinear
-            image=icono_caja, 
+            image=icono_muestra, 
             command=self.muestra, 
             justify='center',  # Centra el texto
             **estilo_boton

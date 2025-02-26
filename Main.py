@@ -34,6 +34,10 @@ class Main:
         self.root = root
         self.root.title("SuralisLAB")
         self.root.geometry("1200x750")  # Más ancho que alto
+        #self.root.state("zoomed")  # Modo pantalla completa en Windows
+        #self.root.attributes("-fullscreen", True)  # Alternativa para otros sistemas
+
+        self.root.minsize(600, 375)  # Ancho mínimo de 1200 y alto mínimo de 750
 
         self.root.iconbitmap(get_path_images("Icono.ico"))
 

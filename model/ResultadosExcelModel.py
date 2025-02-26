@@ -1,10 +1,10 @@
 from datetime import datetime, timedelta
-import os
-import sys
-from tkinter import messagebox
 import pandas as pd
 from openpyxl import load_workbook
-import pkg_resources
+
+from components.get_analisis import obtener_datos_analisis
+from components.get_path_resources import get_path_resources
+from components.show_messages import show_error
 
 class ResultadosExcelModel:
     def __init__(self):
@@ -14,19 +14,7 @@ class ResultadosExcelModel:
         self.is_modified = None 
         self.headermodel = []
         self.all_datamodel = []
-
-        self.analysis_columns = {
-            "DQO": "DQO",
-            "ST": "ST",
-            "SST": "SST",
-            "SSV": "SSV",
-            "PH": "ph",
-            "AGV": "AGV (ácido acético)",
-            "ALC": "alcalinidad (CaCO3)",
-            "HUM": "% humedad",
-            "TRAN": "transmitancia",
-        }
-
+        self.analysis_columns: dict[str, str] = obtener_datos_analisis()
 
 
     def load_file(self, file_path):
@@ -48,35 +36,9 @@ class ResultadosExcelModel:
             return self.headers, self.all_data 
 
         except Exception as e:
-            self.show_error("Error al cargar el archivo", str(e))
+            show_error("Error al cargar el archivo", str(e))
             return [], []
 
-
-    def show_message(self, title, message):
-        """Muestra un mensaje de información."""
-        messagebox.showinfo(title, message)
-
-    def show_error(self, title, message):
-        """Muestra un mensaje de error."""
-        messagebox.showerror(title, message)
-
-    def show_warning(self, title, message):
-        """Muestra un mensaje de advertencia."""
-        messagebox.showwarning(title, message)
-
-
-
-
-    def loading_default_file(self):
-        """Cargar un archivo predeterminado desde los recursos de la aplicación."""
-        try:
-            # Usamos pkg_resources para acceder al archivo dentro del paquete
-            file_path = pkg_resources.resource_filename(__name__, '../resources/Libro2.xlsx')
-
-            return file_path
-        except Exception as e:
-            print(f"Error al cargar el archivo predeterminado: {e}")
-            return [], []  # Retorna vacío si ocurre un error
     
     def obtener_fechas_mes(self, anio, mes):
         """Obtener todas las fechas del mes."""
@@ -142,15 +104,10 @@ class ResultadosExcelModel:
 
         return fechas_reales
 
-    
-    def get_path(self, filename):
-        """Retorna la ruta persistente en 'resources' dentro de AppData."""
-        base_dir = os.path.join(os.environ['APPDATA'], "SuralisLab", "resources")
-        os.makedirs(base_dir, exist_ok=True)
-        return os.path.join(base_dir, filename)
+
 
     def unidad(self):
-        file = self.get_path("Unidades.xlsx")
+        file = get_path_resources("Unidades.xlsx")
 
         try:
             df = pd.read_excel(file)
@@ -178,13 +135,17 @@ class ResultadosExcelModel:
     def loading_file(self):
         """Cargar datos del archivo Excel seleccionado y procesarlos."""
 
-
-        file_path = self.get_path("Libro2.xlsx")
+        file_path = get_path_resources("Libro2.xlsx")
         # Leer el archivo sin usar ninguna columna como índice
         df = pd.read_excel(file_path, index_col=None)
 
-        if "DIAS DE MUESTREO" in df.columns:
-            df = df.drop(columns=["DIAS DE MUESTREO"])
+        # Excluir la columna "UBICACION" si existe
+        if "UBICACION" in df.columns:
+            df = df.drop(columns=["UBICACION"])
+                # Excluir la columna "UBICACION" si existe
+
+        if "DIAS DE MUESTRA" in df.columns:
+            df = df.drop(columns=["DIAS DE MUESTRA"])
 
         if "PROGRAMA" in df.columns:
             expanded_rows = []
@@ -198,7 +159,7 @@ class ResultadosExcelModel:
 
                 for fecha in fechas_reales:
                     new_row = row.copy()
-                    new_row["FECHAS MUESTREO"] = f"{fecha}"
+                    new_row["FECHA MUESTRA"] = f"{fecha}"
                     expanded_rows.append(new_row)
 
             df = pd.DataFrame(expanded_rows)
@@ -221,8 +182,9 @@ class ResultadosExcelModel:
 
             df = pd.DataFrame(expanded_rows)
 
-        if "FECHAS MUESTREO" in df.columns:
-            idx = df.columns.get_loc("FECHAS MUESTREO") + 1
+
+        if "FECHA MUESTRA" in df.columns:
+            idx = df.columns.get_loc("FECHA MUESTRA") + 1
             df.insert(idx, "FECHA RECEPCION", " ")
             df.insert(idx + 1, "FECHA DIGITACION", " ")
             df.insert(idx + 3, "RESULTADO", " ")

@@ -1,0 +1,11 @@
+{
+    "DQO": "1",
+    "ST": "2",
+    "SST": "3",
+    "SSV": "4",
+    "ph": "5",
+    "AGV (\u00e1cido ac\u00e9tico)": "6",
+    "alcalinidad (CaCO3)": "7",
+    "% humedad": "8",
+    "transmitancia": "9"
+}

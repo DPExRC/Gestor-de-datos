@@ -3,8 +3,6 @@ import tkinter as tk
 import pandas as pd
 
 
-
-
 class UnidadesView:
     def __init__(self, root, volver_a_ajustes_callback):
         self.root = root
@@ -53,46 +51,34 @@ class UnidadesView:
         self.top_frame.pack(fill="x")
         self.top_frame.pack_propagate(False)  
 
-
-        # --- MARCO FILTROS ---
-        # Crear un LabelFrame para encerrar los filtros dentro de un rectángulo
-        self.filter_container = tk.LabelFrame(self.frame, text="Filtros", font=("Arial", 10, "bold"))
-        self.filter_container.pack(fill="x", pady=0, padx=5)
-
-        # Filtros
-        self.filter_frame = tk.Frame(self.filter_container)
-        self.filter_frame.pack(fill="x", pady=0)
-
-
-        headers = ["ANALISIS", "UNIDAD"]
-        self.entry_fields = []
-
-        for col, header in enumerate(headers):
-            tk.Label(self.filter_frame, text=header, font=("Arial", 10, "bold")).grid(row=0, column=col, padx=5, pady=5)
-            entry = tk.Entry(self.filter_frame, width=12)
-            entry.grid(row=1, column=col, padx=5, pady=5, sticky="ew")
-            self.filters.append(entry)
-        
-        # Botón Restablecer Filtros a la derecha del último entry
-        btn_restablecer_filtros = tk.Button(
-            self.filter_frame, text="Restablecer filtros", command="",
-            width=15, font=("Arial", 10)
-        )
-        btn_restablecer_filtros.grid(row=1, column=len(headers), padx=5, pady=5, sticky="w")
-
         # Botones debajo de los filtros
         self.button_frame = tk.Frame(self.frame)
         self.button_frame.pack(fill="x", pady=5, padx=10)
 
+        estilo_boton = {"width": 12, "height": 2, "font": ("Arial", 10)}
+
         btn_guardar = tk.Button(
             self.button_frame, text="Guardar", command=self.export_to_excel,
-            width=7, height=2, font=("Arial", 10)
+            **estilo_boton
         )
         btn_guardar.pack(side="left", padx=10, pady=5)
+        
+
+        btn_add_analisis = tk.Button(
+            self.button_frame, text="Añadir analisis", command=self.add_analisis,
+            **estilo_boton
+        )
+        btn_add_analisis.pack(side="left", padx=10, pady=5)
+
+        btn_delete_analisis = tk.Button(
+            self.button_frame, text="Borrar analisis", command=self.delete_analisis,
+            **estilo_boton
+        )
+        btn_delete_analisis.pack(side="left", padx=10, pady=5)
 
         btn_volver = tk.Button(
             self.button_frame, text="Volver", command=self.volver_a_limites,
-            width=7, height=2, font=("Arial", 10)
+            **estilo_boton
         )
         btn_volver.pack(side="left", padx=10, pady=5)
 
@@ -122,7 +108,13 @@ class UnidadesView:
         self.hide()
         self.volver_a_ajustes_callback()
 
+    def add_analisis(self):
+        if self.controller:
+            self.controller.add_row()
 
+    def delete_analisis(self):
+        if self.controller:
+            self.controller.delete_row()
 
     def show(self):
         """Muestra esta vista."""
@@ -132,6 +124,10 @@ class UnidadesView:
         """Oculta esta vista."""
         self.frame.pack_forget()
 
+    def actualizar(self):
+        """Actualiza datos"""
+        if self.controller:
+            self.controller.actualizar()
         
     def start_edit(self, event=None):
         if self.controller:

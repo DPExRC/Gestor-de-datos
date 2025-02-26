@@ -1,7 +1,5 @@
-import os
-import sys
 from tkinter import filedialog, messagebox
-import shutil
+from components.get_path_resources import get_path_resources
 from components.get_path_images import get_path_images
 
 from fpdf import FPDF
@@ -14,18 +12,12 @@ class DocumentosController:
         self.volver_a_main_callback = volver_a_main_callback
         self.view.set_controller(self)
 
-    def get_path(self, filename):
-        """Retorna la ruta persistente en 'resources' dentro de AppData."""
-        base_dir = os.path.join(os.environ['APPDATA'], "SuralisLab", "resources")
-        os.makedirs(base_dir, exist_ok=True)
-        return os.path.join(base_dir, filename)
-    
-    
 
+    
     def handle_caja(self):
         """Carga un archivo Excel predeterminado, extrae valores únicos de la columna 'LOCALIDAD'
         y los guarda en un PDF en una ubicación seleccionada por el usuario con una imagen de fondo."""
-        file_path = self.get_path("Libro2.xlsx")
+        file_path = get_path_resources("Libro2.xlsx")
 
         try:
             df = pd.read_excel(file_path)  # Cargar archivo Excel
@@ -50,75 +42,81 @@ class DocumentosController:
             pdf = FPDF(format='letter')
             pdf.set_auto_page_break(auto=True, margin=15)
 
-            # Agregar una imagen de fondo que ocupe toda la página (tamaño carta)
-            ##background_image_path = "images/fondo.jpeg"  # Asegúrate de tener esta imagen
-
             pdf.set_font("Arial", size=12)
             
             # Agregar la primera página antes de la iteración
             pdf.add_page()
-            ##pdf.image(background_image_path, x=0, y=0, w=216, h=279)
 
-            # Variable para el incremento en ln
-            #ln_increment = 4.77  # Empezamos con un incremento de 0.2
+            # Establecer la posición de inicio para la primera página (7 mm desde la parte superior)
+            pdf.set_y(7)
+
             # Contar las iteraciones y dividir en páginas de 5 en 5
             for index, valor in enumerate(valores_unicos):
-                # Si es un nuevo bloque de 5 iteraciones, agrega una nueva página
-                if index % 4 == 0 and index != 0:
+                # Si es un nuevo bloque de 3 iteraciones, agrega una nueva página
+                if index % 3 == 0 and index != 0:
                     pdf.add_page()
-                    ##pdf.image(background_image_path, x=0, y=0, w=216, h=279)
+                    # Restablecer la posición en la nueva página
+                    pdf.set_y(7)
 
+                size = 31
+                size2 = 50
+                sizeln = 16
 
-                size = 28
-                sizeln= 10
-                # Cambiar tamaño de fuente a 24 para todos los valores
-                pdf.set_font("Arial", size=size)  # Cambiar a tamaño 24
+                # Escribir el encabezado "PTAS {valor}"
+                pdf.set_font("Arial", "B", size=size2)  
                 pdf.cell(200, 10, f"PTAS {valor}".upper(), ln=True, align='C')
-                pdf.ln(sizeln)
+                pdf.ln(sizeln)  # Mover hacia abajo
 
+                # Escribir "LABORATORIO CONTROL PROCESOS"
                 pdf.set_font("Arial", size=size)
                 pdf.cell(200, 10, "LABORATORIO CONTROL PROCESOS", ln=True, align='C')
-                pdf.ln(sizeln)
+                pdf.ln(sizeln)  # Mover hacia abajo
 
                 # Imagen adicional encima del fondo
                 image_path = get_path_images("Imagen1.png")
-                x_position = pdf.x + 68.5
-                y_position = pdf.y - 2.8
+                x_position = pdf.x + 55.22
+                y_position = pdf.y - 8.8
                 # h = alto y w = ancho
-                pdf.image(image_path, x=x_position, y=y_position, w=54, h=24)  # Cambié w y h a 50
-                pdf.set_font("Arial", size=12)
+                w = 68.37
+                h = 21.86
+                expand = 1.25
+                pdf.image(image_path, x=x_position, y=y_position, w=w*expand, h=h*expand)
+                pdf.ln(21)  # Mover hacia abajo después de la imagen
 
-                pdf.ln(26)
-                # Incrementar el valor de ln para la siguiente iteración
-                #pdf.ln(18 + ln_increment)  # Aumentamos el valor de ln en cada iteración
+                # Separador de línea que ocupa todo el ancho de la página
+                pdf.set_font("Arial", size=10)
+                pagina_ancho = 216  # Ancho de la página carta en mm
+                margen_izquierdo = 10  # Márgenes izquierdo
+                margen_derecho = 10    # Márgenes derecho
+                linea_anchura = pagina_ancho - margen_izquierdo - margen_derecho  # Calcular el ancho de la línea
+                pdf.cell(linea_anchura, 10, "----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------", ln=True)
 
-                # Aumentar el incremento para la siguiente imagen
-                #ln_increment += 0
+                # Salto de línea para la siguiente sección
+                pdf.ln(4)
 
-                # Mostrar mensaje cuando el índice sea múltiplo de 5
-                if (index + 1) % 4 == 0:
-                    print(f"Se alcanzó el múltiplo de 4: Iteración {index + 1}, Valor: {valor}")
+                # Mostrar mensaje cuando el índice sea múltiplo de 4
+                ##if (index + 1) % 4 == 0:
+                ##    print(f"Se alcanzó el múltiplo de 4: Iteración {index + 1}, Valor: {valor}")
 
+            # Guardar el PDF generado
             pdf.output(save_path)
             messagebox.showinfo("Éxito", f"Archivo PDF guardado en: {save_path}")
 
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo procesar el archivo: {e}")
 
-
-
     def handle_muestra(self):
         """Carga un archivo Excel predeterminado, extrae valores únicos de la columna 'LOCALIDAD' y los guarda en un PDF en una ubicación seleccionada por el usuario."""
-        file_path = self.get_path("Libro2.xlsx")
+        file_path = get_path_resources("Libro2.xlsx")
             
         try:
             df = pd.read_excel(file_path)  # Cargar archivo Excel
-            if "LOCALIDAD" not in df.columns or "PUNTO MUESTREO" not in df.columns:
+            if "LOCALIDAD" not in df.columns or "MUESTRA" not in df.columns:
                 messagebox.showerror("Error", "Las columnas requeridas no existen en el archivo.")
                 return
             
             # Agrupar los puntos de muestreo por localidad
-            localidades = df.groupby("LOCALIDAD")["PUNTO MUESTREO"].apply(list).to_dict()
+            localidades = df.groupby("LOCALIDAD")["MUESTRA"].apply(list).to_dict()
             
             # Preguntar al usuario dónde guardar el archivo PDF
             save_path = filedialog.asksaveasfilename(
@@ -134,19 +132,35 @@ class DocumentosController:
             # Crear un archivo PDF
             pdf = FPDF()
             pdf.set_auto_page_break(auto=True, margin=15)
+            ##background_image = get_path_images("fondo2.jpg")  # Ruta de la imagen de fondo
+
             
             for localidad, puntos in localidades.items():
                 pdf.add_page()
+                ##pdf.image(background_image, x=0, y=0, w=210, h=297)  # Ajustar imagen a tamaño A4
+
+                pdf.set_y(9)
                 #pdf.set_font("Arial", size=20)
                 #pdf.cell(200, 10, f"LOCALIDAD: {localidad}".upper(), ln=True, align='C')
                 
                 pdf.set_font("Arial", size=14)
                 for punto in puntos:
-                    pdf.ln(10)
+                    pdf.set_font("Arial","B", size=22)
                     pdf.cell(200, 10, f"PTAS {localidad}".upper(), ln=True, align='C')
-                    pdf.set_font("Arial", size=14)
+                    pdf.ln(9)
+
+                    pdf.set_font("Arial", size=20)
                     pdf.cell(200, 10, f"{punto}", ln=True, align='C')  # Reemplaza con el punto de muestreo
                     pdf.set_font("Arial", size=14)
+
+                    pdf.set_font("Arial", size=10)
+                    pagina_ancho = 216  # Ancho de la página carta en mm
+                    margen_izquierdo = 10  # Márgenes izquierdo
+                    margen_derecho = 10    # Márgenes derecho
+                    linea_anchura = pagina_ancho - margen_izquierdo - margen_derecho  # Calcular el ancho de la línea
+                    pdf.cell(linea_anchura, 10, "----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------", ln=True)
+
+
             
             pdf.output(save_path)
             messagebox.showinfo("Éxito", f"Archivo PDF guardado en: {save_path}")
@@ -155,19 +169,18 @@ class DocumentosController:
             messagebox.showerror("Error", f"No se pudo procesar el archivo: {e}")
 
 
-
     def handle_hoja_ruta(self):
         """Genera un PDF con tablas separadas por localidad, mostrando Puntos de Muestreo, Fecha y Hora con paginación y un espacio para nombre y firma en la última hoja de cada localidad."""
-        file_path = self.get_path("Libro2.xlsx")
+        file_path = get_path_resources("Libro2.xlsx")
             
         try:
             df = pd.read_excel(file_path)  # Cargar archivo Excel
-            if "LOCALIDAD" not in df.columns or "PUNTO MUESTREO" not in df.columns:
+            if "LOCALIDAD" not in df.columns or "MUESTRA" not in df.columns:
                 messagebox.showerror("Error", "Las columnas requeridas no existen en el archivo.")
                 return
             
             # Agrupar los puntos de muestreo por localidad
-            localidades = df.groupby("LOCALIDAD")["PUNTO MUESTREO"].apply(list).to_dict()
+            localidades = df.groupby("LOCALIDAD")["MUESTRA"].apply(list).to_dict()
             
             # Preguntar al usuario dónde guardar el archivo PDF
             save_path = filedialog.asksaveasfilename(
@@ -206,7 +219,7 @@ class DocumentosController:
 
                     # Encabezados de la tabla
                     pdf.set_font("Arial", size=12, style='B')
-                    pdf.cell(70, y, "Punto de Muestreo", border=1, align='C')
+                    pdf.cell(70, y, "Muestra", border=1, align='C')
                     pdf.cell(60, y, "Fecha", border=1, align='C')
                     pdf.cell(60, y, "Hora", border=1, ln=True, align='C')
 

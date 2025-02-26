@@ -1,9 +1,12 @@
-import os
-import sys
-from tkinter import messagebox
+from datetime import time
+import openpyxl
+from openpyxl.styles import Alignment, Font, Border, Side
 from openpyxl import load_workbook
 import pandas as pd
 import tkinter as tk
+
+from components.get_path_resources import get_path_resources
+from components.show_messages import show_error, show_message, show_warning
 
 
 class UnidadesController:
@@ -11,23 +14,15 @@ class UnidadesController:
         self.model = model
         self.view = view
         self.volver_a_ajustes_callback = volver_a_ajustes_callback
+
+        self.view.set_controller(self)
         self.modified_cells = set()
         self.current_file_path = None
 
 
-        self.analysis_columns = {
-            "DQO": "DQO",
-            "ST": "ST",
-            "SST": "SST",
-            "SSV": "SSV",
-            "PH": "ph",
-            "AGV": "AGV (ácido acético)",
-            "ALC": "alcalinidad (CaCO3)",
-            "HUM": "% humedad",
-            "TRAN": "transmitancia",
-        }
-
+        #headers1, all_data1 = self.model.predeterminado()
         headers, all_data = self.model.predeterminado()
+        
 
 
         # Si los datos fueron obtenidos correctamente, actualizamos la tabla
@@ -35,40 +30,6 @@ class UnidadesController:
 
             self.view.update_table(headers, all_data)
 
-       
-        # Asociar el evento de "KeyRelease" a los campos de filtro para activar la actualización automática
-        self.view.bind_filter_event(self.filter_data)
-
-    def get_path(self, filename):
-        """Retorna la ruta persistente en 'resources' dentro de AppData."""
-        base_dir = os.path.join(os.environ['APPDATA'], "SuralisLab", "resources")
-        os.makedirs(base_dir, exist_ok=True)
-        return os.path.join(base_dir, filename)
-
-    def filter_data(self, event=None):
-            """Filtrar los datos según las entradas en los filtros, manteniendo la correspondencia con sus índices originales."""
-            # Obtener todos los datos e índices originales del modelo
-            all_data = self.model.all_data
-
-            # Aplicar cada filtro sobre los datos
-            for col_idx, filter_entry in enumerate(self.view.filters):
-                search_term = filter_entry.get().lower().strip()  # Obtener el término de búsqueda
-                if search_term:
-                    # Si hay un término para filtrar
-                    all_data = [row for row in all_data if search_term in str(row[col_idx]).lower()]
-
-            # Actualizar la tabla con los datos filtrados
-            self.view.update_table(self.model.headers, all_data)
-
-    def reset_filters(self):
-        """Restablecer los filtros y mostrar todos los datos"""
-        # Limpiar todos los filtros
-        for filter_entry in self.view.filters:
-            filter_entry.delete(0, tk.END)
-        
-        # Mostrar todos los datos
-        self.view.update_table(self.model.headers, self.model.all_data)  # Mostrar todos los datos sin filtrar
-   
 
     def start_edit(self, event=None):
         """Iniciar la edición de una celda seleccionada."""
@@ -89,6 +50,41 @@ class UnidadesController:
         # Registrar la celda modificada
         self.modified_cells.add((self.selected_row_idx, self.selected_column))  # Usamos un set para evitar duplicados
 
+    def new_encabezados(self, antes, despues):
+        """Buscar en la primera fila (encabezados) y actualizar el nombre si lo encuentra; si no, añadirlo al final."""
+        ruta_archivo = get_path_resources("Libro2.xlsx")
+        wb = openpyxl.load_workbook(ruta_archivo)
+
+        # Seleccionar la hoja activa
+        sheet = wb.active
+        try:
+            
+            antes = antes[0]
+            # Cargar el archivo Excel
+
+            # Verificar si 'antes' ya existe en la primera fila (encabezados)
+            found = False
+            for col_num, cell in enumerate(sheet[1], start=1):
+                if cell.value == antes:
+                    # Si el encabezado 'antes' es encontrado, actualizar su nombre
+                    sheet.cell(row=1, column=col_num, value=despues)
+                    found = True
+                    break
+
+            # Si no se encontró el encabezado 'antes', añadir el nuevo encabezado al final
+            if not found:
+                # Obtener la última columna con datos
+                last_col = sheet.max_column  
+
+                sheet.cell(row=1, column=last_col+1, value=despues)
+
+            # Guardar el archivo con los cambios
+            wb.save(ruta_archivo)
+
+        except Exception as e:
+            print(f"Hubo un problema al agregar el encabezado a Libro2.xlsx: {e}")
+
+
     def save_edit(self, event=None):
             """Guardar la edición de una celda y actualizar 'FECHA DIGITACION' si corresponde."""
             if not self.current_entry:
@@ -96,7 +92,6 @@ class UnidadesController:
 
 
             new_value = self.current_entry.get().strip()
-            print(new_value)
             item = self.view.tree.selection()[0]
             col_idx = self.selected_column
             row_idx = self.selected_row_idx
@@ -107,8 +102,12 @@ class UnidadesController:
 
             # Guardar el nuevo valor en la celda editada
             current_values = list(self.view.tree.item(item)["values"])
+            if col_idx == 0:
+                self.new_encabezados(current_values, new_value)
+
             current_values[col_idx] = new_value
             self.view.tree.item(item, values=current_values)
+
 
             row_index = self.view.tree.index(item)
             self.model.all_data[row_index] = current_values
@@ -127,95 +126,49 @@ class UnidadesController:
             self.current_entry = None
 
 
-    def obtener_datos(self):
-        ruta_archivo = self.get_path("Libro2.xlsx")
 
-        try:
-            # Cargar el archivo Excel en un DataFrame
-            df = pd.read_excel(ruta_archivo)
-
-            # Crear la columna "ANALISIS" a partir de las columnas de análisis
-            if any(col in df.columns for col in self.analysis_columns.values()):
-                df["ANALISIS"] = df[list(self.analysis_columns.values())] \
-                    .apply(lambda row: ", ".join(row.dropna().astype(str)), axis=1)
-                
-                # Eliminar las columnas originales de análisis
-                df = df.drop(columns=[col for col in self.analysis_columns.values() if col in df.columns])
-
-                # Separar los análisis por comas y crear filas adicionales
-                expanded_rows = []
-
-                for _, row in df.iterrows():
-                    # Obtener los análisis separados por comas
-                    analisis = str(row["ANALISIS"]).split(",")
-                    analisis = [a.strip() for a in analisis if a.strip()]  # Limpiar espacios
-
-                    # Crear una fila para cada análisis
-                    for analisis_item in analisis:
-                        new_row = row.copy()  # Copiar la fila original
-                        new_row["ANALISIS"] = analisis_item  # Asignar el análisis específico
-                        expanded_rows.append(new_row)
-
-                # Convertir la lista de filas expandidas a un DataFrame
-                df = pd.DataFrame(expanded_rows)
-
-            # Devolver un DataFrame con las columnas 'LOCALIDAD' y las columnas de análisis
-            return df[["ANALISIS"]]
-        
-
-
-                      
-        except FileNotFoundError:
-            print(f"Error: Archivo '{ruta_archivo}' no encontrado.")
-            return None
-        except pd.errors.EmptyDataError:
-            print(f"Error: El archivo '{ruta_archivo}' está vacío.")
-            return None
-        except pd.errors.ParserError:
-            print(f"Error al parsear el archivo '{ruta_archivo}'.")
-            return None
-        except Exception as e:
-            print(f"Error al leer el archivo '{ruta_archivo}': {e}")
-            return None
         
     def save_to_file(self):
             """Guardar los datos modificados en el archivo Excel en la ruta actual."""
             if not self.current_file_path:
-                self.show_error("Error", "No hay archivo seleccionado.")
+                show_error("Error", "No hay archivo seleccionado.")
                 return
 
             try:
                 # Verificar si hay datos modificados
                 if not self.is_data_modified:
-                    self.show_warning("Advertencia", "No hay cambios para guardar.")
+                    show_warning("Advertencia", "No hay cambios para guardar.")
                     return
 
                 # Verificar si hay filas con el valor "default" en alguna de sus celdas
-                invalid_rows = [row for row in self.model.all_data if any("default" in str(cell).lower() for cell in row)]
+                invalid_rows = [row for row in self.model.all_data1 if any("default" in str(cell).lower() for cell in row)]
                 if invalid_rows:
-                    self.show_warning("Advertencia", "No se puede guardar el archivo debido a valores 'default' en los datos.")
+                    show_warning("Advertencia", "No se puede guardar el archivo debido a valores 'default' en los datos.")
                     return
+                
+                 # Agregar pausa para asegurar que el archivo se guarde completamente
+                time.sleep(1) 
 
                 # Exportar los datos al archivo base sobrescribiéndolo
-                self.model.export_to_excel(self.model.all_data, self.model.headers, self.current_file_path)
+                self.model.export_to_excel(self.model.all_data1, self.model.headers, self.current_file_path)
 
-                self.show_message("Éxito", f"Archivo guardado en {self.current_file_path}.")
+                show_message("Éxito", f"Archivo guardado en {self.current_file_path}.")
 
                 # Restablecer la bandera de modificación
                 self.is_data_modified = False
 
             except Exception as e:
-                self.show_error("Error al guardar archivo", str(e))
+                show_error("Error al guardar archivo", str(e))
 
 
 
     def export_to_excel(self):
             """Exportar los datos a un archivo Excel"""
-            file_path = self.get_path("Unidades.xlsx")
+            file_path = get_path_resources("Unidades.xlsx")
 
             if file_path:
                 self.export(self.model.all_data, self.model.headers, file_path)
-                self.show_message("Éxito", f"Datos exportados a {file_path}")
+                show_message("Éxito", f"Datos exportados a {file_path}")
 
     def export(self, data, headers, file_path):
         """Exportar los datos modificados a un archivo Excel"""
@@ -233,14 +186,59 @@ class UnidadesController:
 
         wb.save(file_path)
 
-    def show_message(self, title, message):
-        """Muestra un mensaje de información."""
-        messagebox.showinfo(title, message)
+    def actualizar(self):
+        """Actualiza los datos y la vista de la tabla."""
+        headers, all_data = self.model.obtener_datos()  # Obtener datos actualizados
 
-    def show_error(self, title, message):
-        """Muestra un mensaje de error."""
-        messagebox.showerror(title, message)
+        if headers and all_data:
+            self.view.update_table(headers, all_data)  # Actualizar la vista
+        else:
+            self.view.show_warning("Advertencia", "No se encontraron datos para actualizar.")
 
-    def show_warning(self, title, message):
-        """Muestra un mensaje de advertencia."""
-        messagebox.showwarning(title, message)
+    def add_row(self):
+        """Añadir una nueva fila con valores predeterminados en la posición deseada, usando los índices originales y actualizando el Treeview."""
+        if not self.model.headers:
+            tk.messagebox.showerror("Error", "No se puede añadir una fila sin datos cargados.")
+            return
+
+        # Crear una nueva fila con valores 'default'
+        new_row = ["default"] * len(self.model.headers)
+
+        # Si no hay ninguna fila seleccionada, añadir al final
+        self.model.all_data.append(new_row)
+        new_index = len(self.model.all_data) + 1
+        #self.model.original_indices.append(new_index)
+
+        # Actualizar el Treeview con los datos completos (filtrados y originales)
+        self.view.update_table(self.model.headers, self.model.all_data)
+
+
+        self.is_data_modified = True
+
+        tk.messagebox.showinfo("Éxito", "Nueva fila añadida correctamente.")
+
+    def delete_row(self):
+        # Obtener la fila seleccionada
+        selected_item = self.view.tree.selection()  
+
+        if selected_item:
+            selected_values = list(self.view.tree.item(selected_item)["values"])
+
+            # Normalizar valores: convertir NaN a '' en self.model.all_data
+            normalized_data = [[x if not pd.isna(x) else '' for x in row] for row in self.model.all_data]
+
+            if selected_values in normalized_data:
+
+                # Eliminar la fila correspondiente
+                index_to_remove = normalized_data.index(selected_values)
+                del self.model.all_data[index_to_remove]
+
+                # Eliminar de la tabla visual
+                self.view.tree.delete(selected_item)
+
+                print("Fila eliminada correctamente.")
+
+            else:
+                print("La lista no está en la lista de listas.")
+
+

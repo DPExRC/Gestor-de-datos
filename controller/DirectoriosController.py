@@ -1,9 +1,9 @@
-import os
-import sys
 from tkinter import filedialog, messagebox
 import openpyxl
 import tkinter as tk
 from tkinter import ttk
+
+from components.get_path_resources import get_path_resources
 
 class DirectoriosController:
     def __init__(self, model, view, volver_a_main_callback):
@@ -25,6 +25,7 @@ class DirectoriosController:
             for row in sheet.iter_rows(min_row=2, min_col=1, max_col=1, values_only=True):
                 localidad = row[0]
                 if localidad:
+                    localidad = localidad.strip()  # Eliminar espacios al inicio y final
                     localidades.append(localidad)
 
             return localidades
@@ -46,15 +47,10 @@ class DirectoriosController:
             self.directorios_dict[localidad] = archivo  # Guardar en el diccionario
             self.guardar_directorios()  # Guardar en el archivo .txt
 
-    def get_path(self, filename):
-        """Retorna la ruta persistente en 'resources' dentro de AppData."""
-        base_dir = os.path.join(os.environ['APPDATA'], "SuralisLab", "resources")
-        os.makedirs(base_dir, exist_ok=True)
-        return os.path.join(base_dir, filename)
 
     def guardar_directorios(self):
         """Guarda las localidades únicas con sus rutas."""
-        ruta_guardado = self.get_path("DirectoriosLocalidades.txt")
+        ruta_guardado = get_path_resources("DirectoriosLocalidades.txt")
 
         try:
             localidades_unicas = set(self.localidades)  # Asegurar que solo haya una coincidencia por localidad
@@ -70,10 +66,9 @@ class DirectoriosController:
 
     def cargar_localidades(self):
         """Carga las localidades, elimina las repetidas y las muestra en la tabla con un botón de selección de archivo."""
-        file_path = self.get_path("Libro2.xlsx")
+        file_path = get_path_resources("Libro2.xlsx")
         self.localidades = list(set(self.leer_archivo_excel(file_path)))  # Eliminar duplicados al cargar
         self.localidades.sort()  # Ordenar alfabéticamente para mayor claridad
-        print(self.localidades)
 
         # Limpiar el frame antes de crear la tabla (solo si es necesario)
         if hasattr(self, 'tree'):
@@ -94,8 +89,8 @@ class DirectoriosController:
             self.tree.heading("Ruta", text="RUTA")
 
             # Ajustar el tamaño horizontal de las columnas
-            self.tree.column("Localidad", width=5, anchor="w")  # 200 píxeles, alineado a la izquierda
-            self.tree.column("Ruta", width=600, anchor="w")       # 300 píxeles, alineado a la izquierda
+            self.tree.column("Localidad", width=5, anchor="w")  
+            self.tree.column("Ruta", width=600, anchor="w")     
 
             self.tree.bind("<Double-1>", self.start_edit)
 
@@ -132,7 +127,7 @@ class DirectoriosController:
 
     def cargar_directorios_guardados(self):
         """Carga las localidades con sus archivos si existen."""
-        ruta_guardado = self.get_path("DirectoriosLocalidades.txt")
+        ruta_guardado = get_path_resources("DirectoriosLocalidades.txt")
 
         try:
             with open(ruta_guardado, "r", encoding="utf-8") as file:
